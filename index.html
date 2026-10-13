@@ -272,7 +272,7 @@ R.forEach(r=>{
   e.sort((a,b)=>a.m-b.m);
 });
 /* auditoria: registro encadeado por selo (append-only). Em produção: banco somente-inserção com carimbo de tempo do servidor. */
-const actor=()=>role==='supervisor'?'Supervisor':(COB[role]?role:'Analista A');
+const actor=()=>role==='admin'?'Administrador':role==='supervisor'?'Supervisor':(COB[role]?role:'Analista A');
 const h32=x=>{let h=2166136261;for(let i=0;i<x.length;i++){h^=x.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')};
 let AUD=[],AUD_K=null,AUD_BAK=null;
 const audHash=(pv,e)=>h32(pv+'|'+e.seq+'|'+e.m+'|'+e.u+'|'+e.tipo+'|'+e.rota+'|'+e.t);
@@ -330,7 +330,7 @@ function buildAlerts(){
 buildAlerts();
 const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 /* ============ estado de UI ============ */
-let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor')role='Analista A'}catch(e){}
+let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor'&&role!=='admin')role='Analista A'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
 let qf='todos';
@@ -364,10 +364,10 @@ function feedBanner(){
   const st=R.filter(isStale);
   return st.length?`<div class="recban info"><b style="color:var(--fg)">⚠ ${st.length} rota${st.length>1?'s':''} sem dado há mais de ${CFG.posAtraso} min:</b> ${st.map(r=>`<a href="#rota-${r.id}">${lab(r)} (${agoTxt(r)})</a>`).join(', ')}. Cada uma abre um alerta de perda de sinal.</div>`:''}
 function header(){
-  const sup=role==='supervisor',nav=[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros'],['integracao','Integração Roadnet'],['auditoria','Auditoria']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
+  const sup=role==='supervisor',adm=role==='admin',nav=adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
   return `<header><a class="backlink" href="#torre">← Painel de controle</a><div class="brand"><i></i>Torre de Entregas</div>
   <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
-  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
+  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
 /* ---- mapa ---- */
 const PX=lon=>(lon+47.45)*900, PY=lat=>(-22.62-lat)*900;
 const ZONES=[['São Paulo',-23.55,-46.63,.16],['Guarulhos',-23.46,-46.53,.07],['Osasco',-23.53,-46.79,.06],['Santo André / SBC',-23.68,-46.55,.08],['Caieiras',-23.36,-46.74,.05],['Jundiaí',-23.19,-46.88,.09],['Campinas',-22.91,-47.06,.10],['Americana',-22.74,-47.33,.07],['Santos',-23.96,-46.33,.07],['Mogi das Cruzes',-23.52,-46.19,.08]];
@@ -639,7 +639,7 @@ function ocorrencias(){
   <section class="panel"><h2>Motivos <small>${tot} NFs</small></h2><div class="bars">${Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="b"><span>${MOT[k]||k}</span><div class="t"><i style="width:${v/mx*100}%"></i></div><span class="v">${v} · ${Math.round(v/tot*100)}%</span></div>`).join('')}</div>
   <div class="pad sub">Logística responde pelos atrasos de horário; Comercial, pelos problemas de pedido e agenda. Este é o recorte que o app barra na liberação da rota.</div></section></div>`}
 /* ---- supervisão ---- */
-const acessoNegado=()=>'<h1>Acesso restrito</h1><div class="note">Esta tela é do perfil Supervisor. Troque o perfil no topo da página para ver.</div>';
+const acessoNegado=()=>'<h1>Acesso restrito</h1><div class="note">Esta tela não está disponível para o seu perfil. Troque o perfil no topo da página.</div>';
 function supervisor(){
   const now=demoMin(),esc2=ALERTS.filter(a=>a.estado==='Escalado'),venc=ALERTS.filter(a=>a.estado==='Novo'&&a.recontato&&a.recontato<=now),
    semTrat=ALERTS.filter(a=>a.estado==='Novo'&&a.sev===2&&a.resp==null&&now-a.criado>slaOf(2,a.rota)),pend=LIBR.filter(l=>LIB[l.id].pedido&&!LIB[l.id].exc);
@@ -947,7 +947,8 @@ function liberacao(){
 function render(){
   const h=location.hash.slice(1)||'torre';
   if(h.startsWith('rota-')){view='rota';var rid=+h.slice(5)}else if(h.startsWith('viagem-')){view='viagem';var vid=+h.slice(7)}else view=h;
-  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'?parametros():acessoNegado(),integracao:()=>role==='supervisor'?integracao():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='supervisor'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista,turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
+  if(role==='admin'&&!['integracao','auditoria','parametros'].includes(view)){location.hash='#integracao';return}
+  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'||role==='admin'?parametros():acessoNegado(),integracao:()=>role==='admin'?integracao():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='admin'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista,turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
   document.body.dataset.view=view;soundCheck();
   document.getElementById('app').innerHTML=header()+(view==='motorista'?'':feedBanner()+contBanner())+main;
   if(view==='torre'&&vbDirty){vbDirty=false;vb=selRoute?fitRoute(byId(selRoute)):fitAll();redrawMap()}
@@ -1061,7 +1062,7 @@ document.addEventListener('change',e=>{
   if(i==='nf-q'){nfFilt.q=e.target.value;render();return}
   if(i==='aud-tipo'){audF.tipo=e.target.value;render();return}
   if(i==='aud-q'){audF.q=e.target.value;render();return}
-  if(i==='role-sel'){const antes=role;role=e.target.value;if(role!=='supervisor'){qf='meus';uf=''}else{qf='todos';uf=''}logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'){location.hash='#torre'}render();return}
+  if(i==='role-sel'){const antes=role;role=e.target.value;if(role!=='supervisor'&&role!=='admin'){qf='meus';uf=''}else{qf='todos';uf=''}logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='admin'){location.hash='#integracao'}else if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'||h==='integracao'){location.hash='#torre'}render();return}
   if(i==='f-st'){filt.st=e.target.value;render()}else if(i==='f-mot'){filt.motivo=e.target.value;render()}else if(i==='f-area'){filt.area=e.target.value;render()}
   else if(i==='d-sel'){drv.rota=+e.target.value;drv.step='list';render()}
 });

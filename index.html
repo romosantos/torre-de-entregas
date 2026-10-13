@@ -272,7 +272,7 @@ R.forEach(r=>{
   e.sort((a,b)=>a.m-b.m);
 });
 /* auditoria: registro encadeado por selo (append-only). Em produção: banco somente-inserção com carimbo de tempo do servidor. */
-const actor=()=>role==='supervisor'?'Supervisor':'Analista A';
+const actor=()=>role==='supervisor'?'Supervisor':(COB[role]?role:'Analista A');
 const h32=x=>{let h=2166136261;for(let i=0;i<x.length;i++){h^=x.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')};
 let AUD=[],AUD_K=null,AUD_BAK=null;
 const audHash=(pv,e)=>h32(pv+'|'+e.seq+'|'+e.m+'|'+e.u+'|'+e.tipo+'|'+e.rota+'|'+e.t);
@@ -330,7 +330,7 @@ function buildAlerts(){
 buildAlerts();
 const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 /* ============ estado de UI ============ */
-let role='analista';try{role=localStorage.getItem('torre_role')||'analista'}catch(e){}
+let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor')role='Analista A'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
 let qf='todos';
@@ -367,7 +367,7 @@ function header(){
   const sup=role==='supervisor',nav=[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros'],['auditoria','Auditoria']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
   return `<header><a class="backlink" href="#torre">← Painel de controle</a><div class="brand"><i></i>Torre de Entregas</div>
   <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
-  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso"><option value="analista" ${sup?'':'selected'}>Analista</option><option value="supervisor" ${sup?'selected':''}>Supervisor</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
+  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
 /* ---- mapa ---- */
 const PX=lon=>(lon+47.45)*900, PY=lat=>(-22.62-lat)*900;
 const ZONES=[['São Paulo',-23.55,-46.63,.16],['Guarulhos',-23.46,-46.53,.07],['Osasco',-23.53,-46.79,.06],['Santo André / SBC',-23.68,-46.55,.08],['Caieiras',-23.36,-46.74,.05],['Jundiaí',-23.19,-46.88,.09],['Campinas',-22.91,-47.06,.10],['Americana',-22.74,-47.33,.07],['Santos',-23.96,-46.33,.07],['Mogi das Cruzes',-23.52,-46.19,.08]];
@@ -959,7 +959,7 @@ document.addEventListener('change',e=>{
   if(i==='nf-q'){nfFilt.q=e.target.value;render();return}
   if(i==='aud-tipo'){audF.tipo=e.target.value;render();return}
   if(i==='aud-q'){audF.q=e.target.value;render();return}
-  if(i==='role-sel'){const antes=role;role=e.target.value;logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'){location.hash='#torre'}render();return}
+  if(i==='role-sel'){const antes=role;role=e.target.value;if(role!=='supervisor'){qf='meus';uf=''}else{qf='todos';uf=''}logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'){location.hash='#torre'}render();return}
   if(i==='f-st'){filt.st=e.target.value;render()}else if(i==='f-mot'){filt.motivo=e.target.value;render()}else if(i==='f-area'){filt.area=e.target.value;render()}
   else if(i==='d-sel'){drv.rota=+e.target.value;drv.step='list';render()}
 });

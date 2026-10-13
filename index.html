@@ -222,6 +222,14 @@ const DEPOT={lat:-23.50,lon:-46.78};
 const routes={};
 rows.forEach(r=>{(routes[r.rota]??={id:r.rota,mot:r.mot,placa:r.placa,dono:r.dono,stops:[]}).stops.push(r)});
 const R=Object.values(routes);
+/* unidades, carteira e cobertura: toda rota tem dono; se o titular estiver ausente, vale o substituto cadastrado */
+const UNID=['Matriz','Filial Campinas','Filial Santos','Filial Jundiaí'];
+const COB={'Analista A':{unid:['Matriz','Filial Santos'],sub:'Analista C'},'Analista B':{unid:['Filial Campinas','Filial Jundiaí'],sub:'Analista A'},'Analista C':{unid:[],sub:'Analista B'}};
+const AUS={};let uf='';
+const titularOf=u=>Object.keys(COB).find(k=>COB[k].unid.includes(u));
+function donoDe(u){let t=titularOf(u),g=0;while(t&&AUS[t]&&g++<6)t=COB[t].sub;return t&&!AUS[t]?t:'Supervisor'}
+const recalc=()=>R.forEach(r=>{r.titular=titularOf(r.unid);r.dono=donoDe(r.unid)});
+R.forEach((r,i)=>{r.unid=UNID[[0,0,1,1,2,2,3,3][i%8]]});recalc();
 const km=(a,b)=>{const t=Math.PI/180,dl=(b.lat-a.lat)*t,dn=(b.lon-a.lon)*t,h=Math.sin(dl/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(dn/2)**2;return 12742*Math.asin(Math.sqrt(h))};
 const kmOf=l=>{let c=DEPOT,t=0;l.forEach(s=>{t+=km(c,s);c=s});return t};
 function planOrd(list){ // vizinho mais próximo a partir do CD + refinamento 2-opt (caminho aberto)
@@ -317,16 +325,16 @@ function buildAlerts(){
   // mantém casos já tratados mesmo que a causa tenha sumido
   ALERTS.forEach(a=>{if(a.estado!=='Novo'&&!out.find(x=>x.id===a.id))out.push(a)});
   ALERTS=out;
+  ALERTS.forEach(a=>{if(!a.dono)a.dono=byId(a.rota).dono});
 }
 buildAlerts();
-ALERTS.forEach(a=>{if(a.rota%5===0)a.dono='Analista B';else if(a.rota%7===0)a.dono='Analista A'});
 const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 /* ============ estado de UI ============ */
 let role='analista';try{role=localStorage.getItem('torre_role')||'analista'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
 let qf='todos';
-const qfOk=a=>qf==='todos'||(qf==='meus'&&a.dono===actor())||(qf==='sem'&&!a.dono);
+const qfOk=a=>(!uf||byId(a.rota).unid===uf)&&(qf==='todos'||(qf==='meus'&&a.dono===actor())||(qf==='sem'&&!a.dono));
 const CONT={on:false,since:0,notas:[]};
 let MUTE=false;try{MUTE=localStorage.getItem('torre_mute')==='1'}catch(e){}
 let AC=null,SND=0,soundInit=false;const SEEN={a:new Set(),r:new Set(),feed:false};
@@ -369,7 +377,7 @@ const SLBL={alta:'Alerta alto',media:'Alerta médio',andamento:'Em andamento',ok
 const SORD={ok:0,andamento:1,media:2,alta:3};
 function rState(r){const A=ALERTS.find(a=>a.rota===r.id&&a.estado==='Novo');const p=r.stops.some(s=>s.st==='Pendente');const k=A?(A.sev===2?'alta':'media'):(p?'andamento':'ok');return {k,A,col:SC[k]}}
 function rPos(r){const p=r.stops.filter(s=>s.st==='Pendente');const L=p.length?p:r.stops;return {x:PX(L.reduce((a,s)=>a+s.lon,0)/L.length),y:PY(L.reduce((a,s)=>a+s.lat,0)/L.length)}}
-function rMatch(r){const st=rState(r);if(mf.tipo==='alert'&&!st.A)return false;if(mf.tipo==='pend'&&!r.stops.some(s=>s.st==='Pendente'))return false;if(mf.dono&&r.dono!==mf.dono)return false;return true}
+function rMatch(r){const st=rState(r);if(mf.tipo==='alert'&&!st.A)return false;if(mf.tipo==='pend'&&!r.stops.some(s=>s.st==='Pendente'))return false;if(mf.dono&&r.dono!==mf.dono)return false;if(uf&&r.unid!==uf)return false;return true}
 const boxRatio=()=>{const b=document.getElementById('mapbox');return b&&b.clientHeight?b.clientWidth/b.clientHeight:1.5};
 function fitPts(pts,pad=.1,minSpan=40){let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;pts.forEach(p=>{x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y)});
   let w=Math.max(x1-x0,minSpan)*(1+pad*2),h=Math.max(y1-y0,minSpan)*(1+pad*2);const ra=boxRatio();if(w/h<ra)w=h*ra;else h=w/ra;
@@ -447,9 +455,11 @@ function mapFilters(){
   return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button></div>`}
 
 /* ---- torre ---- */
+function ufBar(){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
+  return `<div class="row" style="flex-wrap:wrap;gap:6px">${b('','Todas as unidades')}${UNID.map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
 function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a=>a.dono===actor()).length,sd=all.filter(a=>!a.dono).length;
   const b=(v,l)=>`<button class="btn sm ${qf===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
-  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div><div class="sub">Atalhos: J e K percorrem a fila · T trata · Esc fecha</div></div>`}
+  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar()}<div class="sub">Atalhos: J e K percorrem a fila · T trata · Esc fecha</div></div>`}
 function alertCard(a){
   const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0&&a.estado==='Novo';
   const sevL=a.sev===2?'Alta':'Média';
@@ -492,7 +502,7 @@ function relViagem(id){
   const row=(k,v)=>`<tr><td class="sub" style="width:38%">${k}</td><td>${v}</td></tr>`;
   return `<div class="row noprint"><a class="btn" href="#rota-${id}" style="text-decoration:none">← Rota</a><span class="sp"></span><button class="btn pri" data-act="print">Imprimir ou salvar em PDF</button></div>
   <div class="rv"><h1>Relatório da viagem · Rota ${lab(r)}</h1><div class="sub">Operação de 08/10/2026 · gerado automaticamente do histórico às ${hhmm(demoMin())} · dados fictícios</div>
-  <section class="panel"><h2>Identificação</h2><div class="tw"><table class="wrap"><tbody>${row('Motorista',esc(r.mot))}${row('Veículo',esc(r.placa))}${row('Responsável',esc(r.dono))}${row('Liberação',lib?hhmm(lib.m)+' · '+esc(lib.u||''):'—')}${row('Saída do CD',saida?hhmm(saida.m):'—')}${row('Encerramento',E.ok?hhmm(E.ok.m)+' · '+esc(E.ok.u):'Em andamento')}</tbody></table></div></section>
+  <section class="panel"><h2>Identificação</h2><div class="tw"><table class="wrap"><tbody>${row('Motorista',esc(r.mot))}${row('Veículo',esc(r.placa))}${row('Unidade',esc(r.unid))}${row('Responsável',esc(r.dono)+(r.dono!==r.titular?` · cobrindo ${esc(r.titular||'sem titular')} (ausente)`:''))}${row('Liberação',lib?hhmm(lib.m)+' · '+esc(lib.u||''):'—')}${row('Saída do CD',saida?hhmm(saida.m):'—')}${row('Encerramento',E.ok?hhmm(E.ok.m)+' · '+esc(E.ok.u):'Em andamento')}</tbody></table></div></section>
   <section class="panel"><h2>Resultado</h2><div class="tw"><table class="wrap"><tbody>${row('Paradas',s.n)}${row('Entregues',`${s.Entregue} (${pct(s.Entregue,s.n)}%)`)}${row('Pendentes',s.Pendente)}${row('Reentregas',s.Reentrega)}${row('Devoluções',s.Devolvida)}${row('Valor total',fmt$(s.val)+' · '+fmtN(s.peso)+' kg')}</tbody></table></div></section>
   <section class="panel"><h2>Paradas e evidências</h2><div class="tw"><table class="wrap"><thead><tr><th>#</th><th>Cliente</th><th>NF</th><th>Situação e evidência</th></tr></thead><tbody>${r.stops.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.cli)}</td><td style="font-family:var(--f-mono)">${x.nf}</td><td>${stChip(x.st)}${x.motivo?`<div class="sub">${esc(MOT[x.motivo]||'')}</div>`:''}<div class="sub">${x.evid?`${hhmm(x.evid.m)} · recebido por ${esc(x.evid.rec)}${x.evid.doc?' ('+esc(x.evid.doc)+')':''} · foto do canhoto · ${esc(x.evid.local)}`:(x.st==='Entregue'?'Sem evidência digital (dado do dia)':'')}</div></td></tr>`).join('')}</tbody></table></div></section>
   <section class="panel"><h2>Alertas e tratativas <small>${al.length}</small></h2>${al.length?`<div class="tw"><table class="wrap"><thead><tr><th>Caso</th><th>Gravidade</th><th>Estado</th><th>1ª resposta</th><th>Tentativas sem resposta</th></tr></thead><tbody>${al.map(a=>`<tr><td>${esc(a.kind)}<div class="sub">${a.itens.map(esc).join('<br>')}</div></td><td>${a.sev===2?'Alta':'Média'}</td><td>${a.estado}${a.decisao?` · ${esc(a.decisao)}`:''}</td><td>${a.resp!=null?a.resp+' min':'sem tratativa'}</td><td>${a.sem||0}</td></tr>`).join('')}</tbody></table></div>`:'<div class="pad sub">Nenhum alerta nesta viagem.</div>'}</section>
@@ -502,9 +512,9 @@ function relViagem(id){
   <div class="sub">Conclusão: ${s.Entregue} de ${s.n} paradas entregues${s.Pendente?`, ${s.Pendente} pendentes`:''}${s.Devolvida||s.Reentrega?`, ${s.Reentrega} reentregas e ${s.Devolvida} devoluções`:''}; ${al.length} alerta${al.length===1?'':'s'}, ${ct.length} contato${ct.length===1?'':'s'}. ${E.ok?'Viagem encerrada com checklist completo.':'Viagem ainda não encerrada.'}</div></div>`}
 /* ---- rotas ---- */
 function rotas(){
-  const list=[...R].sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente);
-  return `${kpis()}<section class="panel"><h2>Rotas do dia <small>ordenadas por NFs pendentes</small></h2><div class="tw"><table><thead><tr><th>Rota</th><th>Motorista</th><th>Placa</th><th class="n">NFs</th><th>Progresso</th><th class="n">Entreg.</th><th class="n">Pend.</th><th class="n">Reent.</th><th class="n">Dev.</th><th class="n">Valor</th><th>Último dado</th><th>Alerta</th></tr></thead><tbody>
-  ${list.map(r=>{const s=stats(r.stops),a=ALERTS.find(x=>x.rota===r.id&&x.estado==='Novo');return `<tr class="click" data-open="${r.id}"><td><b>${lab(r)}</b></td><td>${esc(r.mot)}</td><td class="sub" style="font-family:var(--f-mono)">${esc(r.placa)}</td><td class="n">${s.n}</td><td style="min-width:120px">${barOf(s)}</td><td class="n">${s.Entregue}</td><td class="n">${s.Pendente}</td><td class="n">${s.Reentrega}</td><td class="n">${s.Devolvida}</td><td class="n">${fmt$(s.val)}</td><td>${ativa(r)?freshChip(r):'<span class="sub">—</span>'}</td><td>${a?`<span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span>`:'<span class="sub">—</span>'}</td></tr>`}).join('')}</tbody></table></div></section>`}
+  const list=[...R].filter(r=>!uf||r.unid===uf).sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente);
+  return `${kpis()}<section class="panel"><h2>Rotas do dia <small>ordenadas por NFs pendentes</small></h2><div class="pad" style="padding-bottom:0">${ufBar()}</div><div class="tw"><table><thead><tr><th>Rota</th><th class="hm">Unidade</th><th>Motorista</th><th>Placa</th><th class="n">NFs</th><th>Progresso</th><th class="n">Entreg.</th><th class="n">Pend.</th><th class="n">Reent.</th><th class="n">Dev.</th><th class="n">Valor</th><th>Último dado</th><th>Alerta</th></tr></thead><tbody>
+  ${list.map(r=>{const s=stats(r.stops),a=ALERTS.find(x=>x.rota===r.id&&x.estado==='Novo');return `<tr class="click" data-open="${r.id}"><td><b>${lab(r)}</b></td><td class="sub hm">${esc(r.unid)}</td><td>${esc(r.mot)}</td><td class="sub" style="font-family:var(--f-mono)">${esc(r.placa)}</td><td class="n">${s.n}</td><td style="min-width:120px">${barOf(s)}</td><td class="n">${s.Entregue}</td><td class="n">${s.Pendente}</td><td class="n">${s.Reentrega}</td><td class="n">${s.Devolvida}</td><td class="n">${fmt$(s.val)}</td><td>${ativa(r)?freshChip(r):'<span class="sub">—</span>'}</td><td>${a?`<span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span>`:'<span class="sub">—</span>'}</td></tr>`}).join('')}</tbody></table></div></section>`}
 function selRouteOpen(){return (location.hash.match(/^#rota-(\d+)/)||[])[1]}
 function cronNote(r){const C=cron(r),h=m=>{m=Math.round(m);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')},fora=C.out.filter(o=>o.ch>CFG.fimH*60).length;
   return `<div class="pad sub" style="padding-bottom:0">Cronograma previsto: saída do CD às <b>${hhmm(CFG.saidaH*60+CFG.saidaM)}</b>, última parada concluída às <b>${hhmm(C.ult)}</b> e retorno ao CD por volta de <b>${hhmm(C.fim)}</b>. São ${h(C.desl)} de deslocamento e ${h(C.perm)} de permanência no cliente, com velocidade média de ${CFG.velMedia} km/h.${fora?` <b style="color:var(--warn)">${fora} parada${fora>1?'s':''} depois das ${String(CFG.fimH).padStart(2,'0')}:00.</b>`:''} O tempo no cliente segue a classificação do Excel (varejo 30 min, auto-serviço 1h30, atacadista 3h30); a janela de funcionamento ainda não entra no cálculo.</div>`}
@@ -515,7 +525,7 @@ function rota(id){
   const r=byId(id);if(!r)return '<p>Rota não encontrada.</p>';const s=stats(r.stops);
   const al=ALERTS.filter(a=>a.rota===id&&a.estado==='Novo');
   const ev=[...EV[id]].sort((a,b)=>b.m-a.m);
-  return `<div class="row"><a class="btn" href="#rotas" style="text-decoration:none">← Rotas</a><h1>Rota ${lab(r)}</h1><span class="chip">${esc(r.mot)}</span><span class="chip">${esc(r.placa)}</span><span class="chip">${esc(r.dono)}</span>${ativa(r)?freshChip(r):''}<span class="sp"></span>${isStale(r)&&STALE[r.id]!=null?`<button class="btn" data-act="sigback" data-id="${id}">Simular retorno do sinal (demo)</button>`:''}
+  return `<div class="row"><a class="btn" href="#rotas" style="text-decoration:none">← Rotas</a><h1>Rota ${lab(r)}</h1><span class="chip">${esc(r.mot)}</span><span class="chip">${esc(r.placa)}</span><span class="chip">${esc(r.unid)}</span><span class="chip">${esc(r.dono)}${r.dono!==r.titular?' (cobertura)':''}</span>${ativa(r)?freshChip(r):''}<span class="sp"></span>${isStale(r)&&STALE[r.id]!=null?`<button class="btn" data-act="sigback" data-id="${id}">Simular retorno do sinal (demo)</button>`:''}
   <a class="btn" href="#viagem-${id}" style="text-decoration:none">Relatório da viagem</a><button class="btn" data-act="contact" data-id="${id}">Registrar contato</button><button class="btn pri" data-act="treat-route" data-id="${id}">Tratar rota</button></div>
   <div class="kpis"><a class="kpi" href="#rotas" data-go="rota:ALL" data-rid="${id}" title="Ver a lista"><b>${s.n}</b><span>Paradas</span></a><a class="kpi k-ok" href="#rotas" data-go="rota:Entregue" data-rid="${id}" title="Ver a lista"><b>${s.Entregue}</b><span>Entregues</span></a><a class="kpi k-info" href="#rotas" data-go="rota:Pendente" data-rid="${id}" title="Ver a lista"><b>${s.Pendente}</b><span>Pendentes</span></a><a class="kpi k-warn" href="#rotas" data-go="rota:Reentrega" data-rid="${id}" title="Ver a lista"><b>${s.Reentrega}</b><span>Reentregas</span></a><a class="kpi k-bad" href="#rotas" data-go="rota:Devolvida" data-rid="${id}" title="Ver a lista"><b>${s.Devolvida}</b><span>Devoluções</span></a><a class="kpi" href="#rotas" data-go="rota:ALL" data-rid="${id}" title="Ver a lista"><b>${fmt$(s.val)}</b><span>${fmtN(Math.round(s.peso))} kg</span></a></div>
   ${al.map(a=>`<div class="note" style="border-left:4px solid var(--${a.sev===2?'bad':'warn'})"><h3>${a.kind}</h3>${a.itens.map(i=>esc(i)).join('<br>')}</div>`).join('')}
@@ -541,7 +551,7 @@ const acessoNegado=()=>'<h1>Acesso restrito</h1><div class="note">Esta tela é d
 function supervisor(){
   const now=demoMin(),esc2=ALERTS.filter(a=>a.estado==='Escalado'),venc=ALERTS.filter(a=>a.estado==='Novo'&&a.recontato&&a.recontato<=now),
    semTrat=ALERTS.filter(a=>a.estado==='Novo'&&a.sev===2&&a.resp==null&&now-a.criado>slaOf(2,a.rota)),pend=LIBR.filter(l=>LIB[l.id].pedido&&!LIB[l.id].exc);
-  const by={};ALERTS.forEach(a=>{const d=(byId(a.rota).stops[0]||{}).dono||'Sem dono';const o=by[d]??={n:0,ab:0,tr:0,es:0,fp:0,resp:[]};o.n++;if(a.estado==='Novo')o.ab++;else o.tr++;if(a.estado==='Escalado')o.es++;if(a.estado==='Falso positivo')o.fp++;if(a.resp!=null)o.resp.push(a.resp)});
+  const by={};ALERTS.forEach(a=>{const d=byId(a.rota).dono||'Sem dono';const o=by[d]??={n:0,ab:0,tr:0,es:0,fp:0,resp:[]};o.n++;if(a.estado==='Novo')o.ab++;else o.tr++;if(a.estado==='Escalado')o.es++;if(a.estado==='Falso positivo')o.fp++;if(a.resp!=null)o.resp.push(a.resp)});
   return `<h1>Supervisão</h1><div class="kpis">
   <a class="kpi ${esc2.length?'k-bad':''}" href="#supervisor" data-go="sup:esc" title="Ver a lista"><b>${esc2.length}</b><span>Escalados para decidir</span></a>
   <a class="kpi ${pend.length?'k-warn':''}" href="#supervisor" data-go="sup:exc" title="Ver a lista"><b>${pend.length}</b><span>Exceções de liberação pendentes</span></a>
@@ -552,6 +562,9 @@ function supervisor(){
   ${esc2.map(a=>{const r=byId(a.rota);return `<div class="note" style="margin:0"><div class="row"><b style="color:var(--fg)">${lab(r)} · ${esc(r.mot)}</b><span class="sp"></span><span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span></div><div style="margin-top:4px">${esc(a.kind)}${a.escAuto?` · escalado automaticamente após ${a.sem} tentativas sem resposta`:' · escalado pelo analista'}</div><div class="row" style="margin-top:8px"><button class="btn pri sm" data-act="sdec" data-id="${a.id}" data-v="Manter a entrega hoje">Manter entrega hoje</button><button class="btn sm" data-act="sdec" data-id="${a.id}" data-v="Reagendar entrega">Reagendar</button><button class="btn sm" data-act="sdec" data-id="${a.id}" data-v="Devolver ao CD">Devolver ao CD</button><button class="btn sm" data-act="focus" data-id="${a.rota}">Ver no mapa</button></div></div>`}).join('')||'<div class="sub">Nenhum caso aguardando decisão.</div>'}</div></section>
   <section class="panel" id="p-exc"><h2>Exceções de liberação <small>${pend.length} pendentes</small></h2><div class="pad" style="display:grid;gap:10px">
   ${pend.map(l=>{const P=LIB[l.id].pedido;return `<div class="note" style="margin:0"><div class="row"><b style="color:var(--fg)">${lab(l.r)} · ${esc(l.r.mot)}</b></div><div style="margin-top:4px">${lBlk(l).length} NF${lBlk(l).length>1?'s':''} com bloqueio. Justificativa do analista: <span style="color:var(--fg)">${esc(P.ju)}</span></div><div class="row" style="margin-top:8px"><button class="btn pri sm" data-act="sapr" data-id="${l.id}">Aprovar exceção</button><button class="btn sm" data-act="sneg" data-id="${l.id}">Negar</button></div></div>`}).join('')||'<div class="sub">Nenhuma exceção aguardando. O analista solicita na tela Liberação.</div>'}</div></section></div>
+  <section class="panel" id="p-cob" style="grid-column:1/-1"><h2>Carteira e cobertura <small>toda rota tem dono; em férias, a carteira vai para o substituto</small></h2><div class="tw"><table class="wrap"><thead><tr><th>Analista</th><th>Unidades que cobre</th><th class="n">Rotas na carteira</th><th class="n">Rotas atendendo hoje</th><th class="n">Casos abertos</th><th>Substituto</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${Object.keys(COB).map(k=>`<tr><td><b>${esc(k)}</b></td><td>${COB[k].unid.length?COB[k].unid.map(esc).join(', '):'<span class="sub">reserva, sem unidade fixa</span>'}</td><td class="n">${R.filter(r=>r.titular===k).length}</td><td class="n">${R.filter(r=>r.dono===k).length}</td><td class="n">${ALERTS.filter(a=>a.estado==='Novo'&&a.dono===k).length}</td><td>${esc(COB[k].sub)}</td><td>${AUS[k]?'<span class="chip" style="border-color:var(--warn);color:var(--warn)">Em férias</span>':'<span class="chip">Ativo</span>'}</td><td><button class="btn sm" data-act="aus" data-id="${esc(k)}">${AUS[k]?'Marcar retorno':'Marcar férias'}</button></td></tr>`).join('')}</tbody></table></div>
+  <div class="pad sub">${R.some(r=>r.dono==='Supervisor')?`<b style="color:var(--warn)">${R.filter(r=>r.dono==='Supervisor').length} rotas sem analista disponível: ficam com o supervisor.</b> `:''}Ao marcar férias, os casos abertos do analista passam na hora ao substituto e voltam a ele no retorno. Cada mudança fica na auditoria.</div></section>
   <section class="panel"><h2>Carga por analista <small>alertas por responsável da rota</small></h2><div class="tw"><table><thead><tr><th>Analista</th><th class="n">Alertas</th><th class="n">Abertos</th><th class="n">Tratados</th><th class="n">Escalados</th><th class="n">Falsos positivos</th><th class="n">1ª resposta (média)</th></tr></thead><tbody>
   ${Object.entries(by).sort().map(([d,o])=>`<tr><td><b>${esc(d)}</b></td><td class="n">${o.n}</td><td class="n">${o.ab}</td><td class="n">${o.tr}</td><td class="n">${o.es}</td><td class="n">${o.fp}</td><td class="n">${o.resp.length?Math.round(o.resp.reduce((a,b)=>a+b,0)/o.resp.length)+' min':'—'}</td></tr>`).join('')}</tbody></table></div>
   <div class="pad sub">O supervisor decide escalonamentos e exceções, e ajusta as regras em <a href="#parametros">Parâmetros</a>. O analista só solicita.</div></section>`}
@@ -779,7 +792,7 @@ function saveTreat(){
   logEv(tr.rid,`Contato com ${tr.alvo.toLowerCase()}${tr.call&&tr.call.st==='done'?` por ligação no app (${mmss(tr.call.sec)}${tr.transc?', gravada e transcrita':''})`:''}: ${tr.res.toLowerCase()} · decisão: ${tr.acao.toLowerCase()}${tr.rec?` · recontato em ${tr.rec} min`:''}${obs?` · ${obs}`:''}`);
   if(!tr.log){
     ALERTS.filter(x=>tr.aid?x.id===tr.aid:(x.rota===tr.rid&&x.estado==='Novo')).forEach(x=>{
-      if(x.dono!==actor()){logEv(tr.rid,`Caso assumido por ${actor()}${x.dono?` (estava com ${x.dono})`:''}`);x.dono=actor()}
+      if(x.dono!==actor()){logEv(tr.rid,`Caso assumido por ${actor()}${x.dono?` (estava com ${x.dono})`:''}`);x.dono=actor();x.man=true}
       if(x.resp==null)x.resp=Math.max(0,Math.round(demoMin()-x.criado));
       if(R_SEM.includes(tr.res))x.sem=(x.sem||0)+1;
       if(cfgOf(x.rota,'tentEscala')>0&&R_SEM.includes(tr.res)&&x.sem>=cfgOf(x.rota,'tentEscala')){x.estado='Escalado';x.escAuto=true;delete x.recontato;logEv(tr.rid,`Escalado automaticamente ao supervisor após ${x.sem} tentativas sem resposta`,'Sistema');escAuto=true}
@@ -899,6 +912,11 @@ document.addEventListener('click',e=>{
   else if(a==='feedtog'){FEED.down=!FEED.down;if(FEED.down)FEED.since=demoMin();logAud('Integração',FEED.down?'Feed de posições sem dados (simulado)':'Feed de posições restabelecido (simulado)',null,'Sistema');buildAlerts();render();toast(FEED.down?'Feed fora do ar (simulado)':'Feed restabelecido')}
   else if(a==='mv'){const r=byId(selRouteOpen()),i=r.stops.findIndex(z=>z.nf==t.dataset.nf),j=i+ +t.dataset.d;if(i>=0&&j>=0&&j<r.stops.length){[r.stops[i],r.stops[j]]=[r.stops[j],r.stops[i]];r.manual=true;logEv(r.id,`Ordem das paradas ajustada: NF ${r.stops[j].nf} movida para a posição ${j+1}`,actor());logAud('Ordem de paradas',`Rota ${r.id}: NF ${r.stops[j].nf} para a posição ${j+1}`,r.id);render()}}
   else if(a==='mvreset'){const r=byId(id);r.stops=planOrd(r.orig);r.manual=false;logEv(r.id,'Ordem das paradas restaurada para a sugestão por proximidade',actor());logAud('Ordem de paradas',`Rota ${r.id}: ordem sugerida restaurada`,r.id);render()}
+  else if(a==='uf'){uf=t.dataset.v===uf?'':t.dataset.v;render()}
+  else if(a==='aus'){const k=t.dataset.id;if(AUS[k])delete AUS[k];else AUS[k]=true;recalc();let mv=0;
+    ALERTS.forEach(x=>{if(x.estado==='Resolvido'||x.estado==='Falso positivo')return;const novo=byId(x.rota).dono,ant=x.dono;
+      if((!x.man||AUS[ant])&&ant!==novo){x.dono=novo;if(AUS[ant])delete x.man;mv++;logEv(x.rota,`Caso passado de ${ant} para ${novo} (cobertura: ${AUS[k]?k+' em férias':k+' de volta'})`,actor())}});
+    logAud('Cobertura',`${k} ${AUS[k]?'em férias':'de volta'}; ${mv} caso${mv===1?'':'s'} reatribuído${mv===1?'':'s'}`,null);render();toast(AUS[k]?`${k} em férias: ${mv} caso${mv===1?'':'s'} com o substituto`:`${k} de volta: ${mv} caso${mv===1?'':'s'} devolvido${mv===1?'':'s'}`)}
   else if(a==='sigback'){delete STALE[id];logEv(id,'Sinal do motorista restabelecido (simulado)','Sistema');buildAlerts();render();toast('Sinal restabelecido')}
   else if(a==='audchk'){const b=audBad();logAud('Auditoria',b.length?`Verificação de integridade: FALHA na(s) entrada(s) ${b.join(', ')}`:'Verificação de integridade: cadeia íntegra');toast(b.length?'Falha de integridade':'Cadeia íntegra');render()}
   else if(a==='audtamper'){if(AUD_BAK){AUD[AUD_K]=AUD_BAK;AUD_BAK=null}else{AUD_K=1;AUD_BAK=AUD[1];AUD[1]=Object.freeze({...AUD[1],t:AUD[1].t+' [alterado]'})}render()}
@@ -913,7 +931,7 @@ document.addEventListener('click',e=>{
   else if(a==='enchk'){const E=ENC[id]??={chk:{},ok:null};E.chk[t.dataset.k]=!E.chk[t.dataset.k];render()}
   else if(a==='encok'){const E=ENC[id];if(E&&ENCI.every(([k])=>E.chk[k])){E.ok={m:demoMin(),u:actor()};logEv(id,'Viagem encerrada com checklist completo (lacre, NFs e canhotos, ocorrências, veículo)');logAud('Checklist','Checklist de encerramento concluído',id);toast('Viagem encerrada');render()}}
   else if(a==='print'){try{window.print()}catch(x){toast('Use Ctrl+P para imprimir')}}
-  else if(a==='assume'){const x=ALERTS.find(z=>z.id===t.dataset.id);if(x&&x.dono!==actor()){const ant=x.dono;x.dono=actor();logEv(x.rota,`Caso assumido por ${actor()}${ant?` (estava com ${ant})`:''}`);toast(ant?`Caso passado de ${ant} para você`:'Caso assumido');render()}}
+  else if(a==='assume'){const x=ALERTS.find(z=>z.id===t.dataset.id);if(x&&x.dono!==actor()){const ant=x.dono;x.dono=actor();x.man=true;logEv(x.rota,`Caso assumido por ${actor()}${ant?` (estava com ${ant})`:''}`);toast(ant?`Caso passado de ${ant} para você`:'Caso assumido');render()}}
   else if(a==='qf'){qf=t.dataset.v;render()}
   else if(a==='mute'){MUTE=!MUTE;try{localStorage.setItem('torre_mute',MUTE?'1':'0')}catch(x){}render();toast(MUTE?'Som desligado para você':'Som ligado')}
   else if(a==='conton'){CONT.on=true;CONT.since=demoMin();logAud('Contingência','Modo de contingência ativado');render()}

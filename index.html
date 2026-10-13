@@ -68,6 +68,7 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .recban.info{display:block;border-color:var(--line);border-left-color:var(--info);background:var(--panel);color:var(--mut);font-size:13px}
 .recban .it{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .recban .it .sp{flex:1}
+.alert.cp{padding:8px 12px;gap:4px}.alert.cp .top{justify-content:flex-start}.alert.cp h3{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.alert.cp .row2{display:flex;align-items:center;gap:8px}.alert.cp .row2 .sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qmed{width:100%;text-align:left;padding:10px 12px;background:var(--panel2);border:0;border-bottom:1px solid var(--line);color:var(--fg);font:600 13px var(--f-ui,inherit);cursor:pointer}.chips1{flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:4px}.chips1 .fchip{flex:none}.democtl{display:inline-flex;gap:6px;align-items:center;padding:2px 6px;border:1px dashed var(--line);border-radius:8px}.democtl>span{font:600 10px var(--f-mono);color:var(--mut);letter-spacing:.08em}.democtl .btn{font-size:11px}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -377,14 +378,14 @@ function kpis(){const s=stats(rows);const k=(h,cls,v,l,t)=>`<a class="kpi ${cls}
 function feedChip(){return FEED.down?`<span class="chip bad" id="feedchip">⚠ Feed sem dados desde ${hhmm(FEED.since)}</span>`:`<span class="chip ok" id="feedchip">● Dados ao vivo · ${hhmm(demoMin())}</span>`}
 function freshChip(r){const st=isStale(r);return `<span class="chip ${st?'bad':'ok'}">${st?'⚠ Sem dados':'● Dado'} ${agoTxt(r)}</span>`}
 function feedBanner(){
-  if(FEED.down){const m=Math.round(demoMin()-FEED.since);return `<div class="recban" role="alert"><div class="it"><b>⚠ Feed de posições sem dados desde ${hhmm(FEED.since)}${m>0?` (há ${m} min)`:''}.</b><span class="sp"></span><button class="btn sm" data-act="feedtog">Restabelecer feed (demo)</button></div><div>Posições e status na tela podem estar desatualizados. Não decida só por esta tela: confirme por telefone ou rádio e <a href="#contingencia">abra o plano de contingência</a>.</div></div>`}
+  if(FEED.down){const m=Math.round(demoMin()-FEED.since);return `<div class="recban" role="alert"><div class="it"><b>⚠ Feed de posições sem dados desde ${hhmm(FEED.since)}${m>0?` (há ${m} min)`:''}.</b><span class="sp"></span><span class="democtl"><span>DEMO</span><button class="btn sm" data-act="feedtog">Restabelecer feed (demo)</button></div><div>Posições e status na tela podem estar desatualizados. Não decida só por esta tela: confirme por telefone ou rádio e <a href="#contingencia">abra o plano de contingência</a>.</div></div>`}
   const st=R.filter(isStale);
   return st.length?`<div class="recban info"><b style="color:var(--fg)">⚠ ${st.length} rota${st.length>1?'s':''} sem dado há mais de ${CFG.posAtraso} min:</b> ${st.map(r=>`<a href="#rota-${r.id}">${lab(r)} (${agoTxt(r)})</a>`).join(', ')}. Cada uma abre um alerta de perda de sinal.</div>`:''}
 function header(){
   const sup=role==='supervisor',adm=role==='admin',mot=role==='motorista',nav=mot?[['motorista','App do motorista']]:adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Frota própria'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia']];
   return `<header>${mot?`<a class="backlink sair" href="#torre" data-act="motexit">← Sair do app (demo)</a>`:`<a class="backlink" href="#torre">← Painel de controle</a>`}<div class="brand"><i></i>Torre de Entregas</div>
   <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
-  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option><option value="motorista" ${mot?'selected':''}>Motorista (app)</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="traf" title="Apenas para a demonstração: simula trânsito intenso nas previsões">${TRAF.modo==='Intenso'?'Trânsito normal (demo)':'Trânsito intenso (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
+  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option><option value="motorista" ${mot?'selected':''}>Motorista (app)</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed':'Queda do feed'}</button><button class="btn sm" data-act="traf" title="Apenas para a demonstração: simula trânsito intenso nas previsões">${TRAF.modo==='Intenso'?'Trânsito: intenso':'Trânsito: normal'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min</button></span></div></header>`}
 /* ---- mapa ---- */
 const PX=lon=>(lon+47.45)*900, PY=lat=>(-22.62-lat)*900;
 const ZONES=[['São Paulo',-23.55,-46.63,.16],['Guarulhos',-23.46,-46.53,.07],['Osasco',-23.53,-46.79,.06],['Santo André / SBC',-23.68,-46.55,.08],['Caieiras',-23.36,-46.74,.05],['Jundiaí',-23.19,-46.88,.09],['Campinas',-22.91,-47.06,.10],['Americana',-22.74,-47.33,.07],['Santos',-23.96,-46.33,.07],['Mogi das Cruzes',-23.52,-46.19,.08]];
@@ -472,12 +473,16 @@ function mapFilters(){
   return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button></div>`}
 
 /* ---- torre ---- */
-function ufBar(){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
-  return `<div class="row" style="flex-wrap:wrap;gap:6px">${b('','Todas as unidades')}${UNID.map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
+function ufBar(one){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
+  return `<div class="row${one?' chips1':''}" style="flex-wrap:wrap;gap:6px">${b('','Todas as unidades')}${UNID.map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
 function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a=>a.dono===actor()).length,sd=all.filter(a=>!a.dono).length;
   const b=(v,l)=>`<button class="btn sm ${qf===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
-  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar()}<div class="sub">Atalhos: J e K percorrem a fila · T trata · Esc fecha</div></div>`}
-function alertCard(a){
+  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
+function alertCard(a){if(a.estado==='Novo'&&selAlert!==a.id)return alertCompact(a);return alertFull(a)}
+function alertCompact(a){const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0,rd=a.recontato&&a.recontato<=demoMin();
+  return `<div class="alert cp s${a.sev} ${rd?'recdue':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span><h3 title="${esc(a.itens[0])}">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
+  <div class="row2"><span class="sub">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))} · ${a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>'}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
+function alertFull(a){
   const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0&&a.estado==='Novo';
   const sevL=a.sev===2?'Alta':'Média';
   const rd=a.estado==='Novo'&&a.recontato&&a.recontato<=demoMin();
@@ -494,11 +499,15 @@ function recBanner(){
   return ''}
 const NOTI=new Set();
 function checkDue(){const now=demoMin();ALERTS.filter(a=>a.estado==='Novo'&&a.recontato&&a.recontato<=now&&!NOTI.has(a.id+':'+a.recontato)).forEach(a=>{NOTI.add(a.id+':'+a.recontato);toast('Recontato vencido: '+lab(byId(a.rota))+' · '+byId(a.rota).mot.split(' ')[0])})}
+let qMed=false;
+function queueList(open){const now=demoMin(),hi=open.filter(a=>a.sev===2||(a.recontato&&a.recontato<=now)),med=open.filter(a=>!hi.includes(a)),show=qMed||(selAlert&&med.some(a=>a.id===selAlert));
+  if(!open.length)return '<div class="pad sub">Nenhum alerta aberto.</div>';
+  return hi.map(alertCard).join('')+(med.length?`<button class="qmed" data-act="qmed" aria-expanded="${show}">${show?'▾':'▸'} Média gravidade (${med.length}) · ${show?'recolher':'mostrar'}</button>`+(show?med.map(alertCard).join(''):''):'')}
 function torre(){
   const now0=demoMin(),open=ALERTS.filter(a=>a.estado==='Novo'&&qfOk(a)).sort((a,b)=>(+!!(b.recontato&&b.recontato<=now0))-(+!!(a.recontato&&a.recontato<=now0))||b.sev-a.sev||a.criado-b.criado);
   const done=ALERTS.filter(a=>a.estado!=='Novo');
-  return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>por gravidade e tempo de espera</small></h2>
-  ${queueBar()}<div class="queue">${open.map(alertCard).join('')||'<div class="pad sub">Nenhum alerta aberto.</div>'}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
+  return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>gravidade e espera</small></h2>
+  ${queueBar()}<div class="queue">${queueList(open)}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
   <section class="panel"><h2>Mapa das rotas <small>${R.length} rotas · um marcador por rota</small></h2>${mapFilters()}
   <div class="mapwrap"><div class="mapbox" id="mapbox">${mapSVG()}
   <div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>
@@ -1048,6 +1057,7 @@ document.addEventListener('click',e=>{
   else if(a==='rnoff'){rnOff()}
   else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
   else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
+  else if(a==='qmed'){qMed=!qMed;render()}
   else if(a==='traf'){TRAF.modo=TRAF.modo==='Intenso'?'Normal':'Intenso';buildAlerts();logAud('Integração','Trânsito simulado: '+TRAF.modo+' (demo)',null);render();toast('Trânsito '+TRAF.modo.toLowerCase()+' (simulado)')}
   else if(a==='sigback'){delete STALE[id];logEv(id,'Sinal do motorista restabelecido (simulado)','Sistema');buildAlerts();render();toast('Sinal restabelecido')}
   else if(a==='audchk'){const b=audBad();logAud('Auditoria',b.length?`Verificação de integridade: FALHA na(s) entrada(s) ${b.join(', ')}`:'Verificação de integridade: cadeia íntegra');toast(b.length?'Falha de integridade':'Cadeia íntegra');render()}

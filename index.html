@@ -70,6 +70,9 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .recban .it .sp{flex:1}
 .alert.cp{padding:8px 12px;gap:4px}.alert.cp .top{justify-content:flex-start}.alert.cp h3{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.alert.cp .row2{display:flex;align-items:center;gap:8px}.alert.cp .row2 .sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qmed{width:100%;text-align:left;padding:10px 12px;background:var(--panel2);border:0;border-bottom:1px solid var(--line);color:var(--fg);font:600 13px var(--f-ui,inherit);cursor:pointer}.chips1{flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:4px}.chips1 .fchip{flex:none}.democtl{display:inline-flex;gap:6px;align-items:center;padding:2px 6px;border:1px dashed var(--line);border-radius:8px}.democtl>span{font:600 10px var(--f-mono);color:var(--mut);letter-spacing:.08em}.democtl .btn{font-size:11px}
 .sm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:12px;max-height:620px;overflow:auto}.sm-t{display:grid;gap:3px;text-align:left;padding:8px 9px;border-radius:8px;border:1px solid var(--line);border-left-width:5px;background:var(--panel2);color:var(--fg);cursor:pointer;font:inherit;min-height:74px}.sm-t:hover,.sm-t.sel{background:var(--panel);box-shadow:0 0 0 2px var(--fg) inset}.sm-t b{font:700 13px var(--f-mono)}.sm-t .l{font-size:11px;color:var(--mut)}.sm-t .n{font:700 18px var(--f-mono);line-height:1}.sm-t.v{border-left-color:var(--bad)}.sm-t.a{border-left-color:var(--warn)}.sm-t.g{border-left-color:var(--ok)}.sm-t.c{opacity:.6}.sm-t .bar{height:5px}.tabs2{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle}.sm-leg{display:flex;gap:14px;flex-wrap:wrap;padding:8px 12px 0;font-size:12px;color:var(--mut)}
+.kpis{gap:6px}.kpi{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;padding:6px 12px}.kpi b{font-size:22px}
+.mapwrap.sem{grid-template-columns:minmax(0,1fr)}.mapwrap.sem .drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,100vw);max-height:none;min-height:0;z-index:40;background:var(--panel);box-shadow:-12px 0 32px rgba(0,0,0,.45)}
+.sm{grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;padding:10px}.sm-t{min-height:0;padding:6px 8px;gap:2px}.sm-t .n{font-size:15px}.sm-t .l{display:none}.sm-t .row2{display:flex;align-items:baseline;gap:4px}.sm-t .row2 .l2{font-size:11px;color:var(--mut)}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -454,6 +457,7 @@ function mapSVG(){
 function redrawMap(){const m=document.getElementById('mapbox'),s=m&&m.querySelector('svg');if(!s)return;s.outerHTML=mapSVG();const d=document.getElementById('drawer');if(d)d.innerHTML=drawer()}
 function drawer(){
   if(!drawerOpen)return '';
+  if(vw==='sem'&&!selRoute)return '';
   if(!selRoute){
     const cnt={alta:0,media:0,andamento:0,ok:0};R.forEach(r=>cnt[rState(r).k]++);
     const top=[...R].map(r=>({r,p:r.stops.filter(s=>s.st==='Pendente').length})).sort((a,b)=>b.p-a.p).slice(0,6);
@@ -477,10 +481,10 @@ function semaforo(){
   const cnt=k=>L.filter(x=>x.k===k).length;
   return `<div class="sm-leg"><span style="color:var(--bad)">▲ Alta ${cnt('v')}</span><span style="color:var(--warn)">◆ Atenção ${cnt('a')}</span><span style="color:var(--ok)">● No prazo ${cnt('g')}</span><span>✓ Concluída ${cnt('c')}</span><span>Número = NFs pendentes · barra = entregues · clique para o detalhe</span></div>
   <div class="sm" role="list">${L.map(({r,k,p})=>{const [sy,lb]=SEMS[k],s2=stats(r.stops),A=ALERTS.find(a=>a.rota===r.id&&a.estado==='Novo');
-    return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}${A?' · '+esc(A.kind):''}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span style="margin-left:auto;color:${SEMS[k][2]}" aria-hidden="true">${sy}</span></span><span class="n">${p}</span><span class="l">${lb} · ${s2.Entregue}/${r.stops.length}</span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>`}
+    return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}${A?' · '+esc(A.kind):''}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span style="margin-left:auto;color:${SEMS[k][2]}" aria-hidden="true">${sy}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="l">${lb} · ${s2.Entregue}/${r.stops.length}</span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>`}
 function mapFilters(){
   const c=(k,v,l)=>`<button class="fchip ${mf[k]===v?'on':''}" data-act="mf" data-k="${k}" data-v="${v}">${l}</button>`;
-  return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button></div>`}
+  return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}${vw==='sem'?'':`<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button>`}</div>`}
 
 /* ---- torre ---- */
 function ufBar(one){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
@@ -519,7 +523,7 @@ function torre(){
   return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>gravidade e espera</small></h2>
   ${queueBar()}<div class="queue">${queueList(open)}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
   <section class="panel"><h2>${vw==='sem'?'Semáforo das rotas':'Mapa das rotas'} <span class="tabs2"><button class="fchip ${vw==='sem'?'on':''}" data-act="vw" data-v="sem">Semáforo</button><button class="fchip ${vw==='mapa'?'on':''}" data-act="vw" data-v="mapa">Mapa</button></span> <small>${R.length} rotas · um quadrado por rota</small></h2>${mapFilters()}
-  <div class="mapwrap"><div class="mapbox" id="mapbox" ${vw==='sem'?'style="height:auto;min-height:0;overflow:visible"':''}>${vw==='sem'?semaforo():mapSVG()}
+  <div class="mapwrap ${vw==='sem'?'sem':''}"><div class="mapbox" id="mapbox" ${vw==='sem'?'style="height:auto;min-height:0;overflow:visible"':''}>${vw==='sem'?semaforo():mapSVG()}
   ${vw==='sem'?'':`<div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>`}
   ${vw==='sem'?'':`<div class="legend"><span style="color:var(--bad)">■ Alerta alto</span><span style="color:var(--warn)">● Alerta médio</span><span style="color:var(--info)">● Em andamento</span><span style="color:var(--ok)">● Concluída</span><span class="sub">Número = NFs pendentes · mapa esquemático</span></div>`}</div>
   <aside class="drawer" id="drawer">${drawer()}</aside></div></section></div>`}
@@ -1132,6 +1136,7 @@ function openAlerts(){const n=demoMin();return ALERTS.filter(a=>a.estado==='Novo
 document.addEventListener('keydown',e=>{
   if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='Escape'&&tr){clearTimeout(CT);tr=null;document.getElementById('layer').innerHTML='';return}
+  if(e.key==='Escape'&&selRoute&&view==='torre'&&vw==='sem'&&!tr){selRoute=null;selAlert=null;render();return}
   if(tr||view!=='torre')return;
   const l=openAlerts();if(!l.length)return;const i=l.findIndex(a=>a.id===selAlert),k=e.key.toLowerCase();
   if(k==='j'||k==='k'){const n=l[k==='j'?Math.min(l.length-1,i+1):Math.max(0,i<0?0:i-1)];selectRoute(n.rota,n.id);setTimeout(()=>document.querySelector('.alert.sel')?.scrollIntoView({block:'nearest'}),30);e.preventDefault()}

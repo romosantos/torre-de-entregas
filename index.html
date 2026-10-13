@@ -364,7 +364,7 @@ function feedBanner(){
   const st=R.filter(isStale);
   return st.length?`<div class="recban info"><b style="color:var(--fg)">⚠ ${st.length} rota${st.length>1?'s':''} sem dado há mais de ${CFG.posAtraso} min:</b> ${st.map(r=>`<a href="#rota-${r.id}">${lab(r)} (${agoTxt(r)})</a>`).join(', ')}. Cada uma abre um alerta de perda de sinal.</div>`:''}
 function header(){
-  const sup=role==='supervisor',nav=[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros'],['auditoria','Auditoria']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
+  const sup=role==='supervisor',nav=[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros'],['integracao','Integração Roadnet'],['auditoria','Auditoria']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
   return `<header><a class="backlink" href="#torre">← Painel de controle</a><div class="brand"><i></i>Torre de Entregas</div>
   <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
   <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
@@ -567,6 +567,46 @@ function tExport(){const H=['FILIAL','PEDIDO','DATA DE EMISSÃO PEDIDO','NF','DA
   const q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const L=tScope().map(n=>[n.f,n.p,n.ep,n.nf,n.en,n.cl,n.mu,n.ro,n.ex,n.tr,n.pa,1,n.pv,n.dr||'',n.st,n.dr?ddiff(n.dr,n.pv):'',n.dr?(n.dr>n.pv?'Fora do prazo':'Dentro do prazo'):(tVenc(n)?'Fora do prazo':''),n.v,n.pe,n.mo||'',n.se||'',n.ob||''].map(q).join(';'));
   try{const b=new Blob(['﻿'+[H.map(q).join(';'),...L].join('\r\n')],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='monitoramento_transportadoras_ficticio.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);logAud('Exportação',`Exportadas ${L.length} NFs no formato da planilha padrão`,null);toast(`${L.length} NFs exportadas`)}catch(e){toast('Não foi possível gerar o arquivo neste ambiente')}}
+/* ---- integração Roadnet: conexão padrão (simulada, sem rede e sem credencial real) ---- */
+const RN0={amb:'Homologação',url:'https://roadnet.exemplo.invalid/integration',usr:'svc_torre',regiao:'Região Sul',freq:5,modo:'Somente leitura',pass:false,st:'Não configurada',tok:null,ult:null,imp:null};
+let RN={...RN0},RNLOG=[];
+const RNMAP=[['dailyplan/routes','routeIdentity','Rota (código)','Rotas'],['dailyplan/routes','workerIdentity','Motorista','Rotas'],['dailyplan/routes','equipmentIdentity','Veículo (placa)','Rotas'],['dailyplan/routes','stops[].sequenceNumber','Ordem planejada da parada','Rota · paradas'],['dailyplan/routes','stops[].plannedArrival / plannedDeparture','Horário previsto de chegada e saída','Cronograma'],['dailyplan/orders','orderNumber','NF / pedido da parada','Rota · paradas'],['reports/routeactuals','stops[].actualArrival','Chegada real (coluna Ordem real)','Rota · paradas'],['reports/equipmentpositions','latitude, longitude, timestamp','Posição do veículo','Mapa e alerta de perda de sinal'],['events/{subscriber}','eventos do assinante','Atualizações sem consulta repetida','Fila de alertas'],['admin/equipmentType','capacity','Capacidade do veículo','Formação de carga']];
+function rnLog(t){RNLOG.unshift({m:demoMin(),t});RNLOG=RNLOG.slice(0,12)}
+function rnOk(){return RN.st==='Conectada'}
+function integracao(){
+  const c=RN.st==='Conectada',cor=c?'var(--ok,#3ecf8e)':'var(--sub,#9aa7b5)';
+  const prev=RN.imp;
+  return `<div class="row"><h1>Integração Roadnet</h1><span class="chip" style="border-color:${cor}">${c?'● ':'○ '}${RN.st}</span><span class="chip">Simulada · sem rede</span><span class="sp"></span><button class="btn" data-act="rnreset">Restaurar conexão padrão</button></div>
+  <div class="sub" style="margin-bottom:10px">Conexão padrão com o Roadnet (Omnitracs). A Torre só lê: importa o plano do dia e o realizado, não grava nada no Roadnet. Neste protótipo nada sai do navegador e a senha nunca é guardada. Em produção, a credencial fica cifrada no servidor e a chamada é feita por ele.</div>
+  <div class="two">
+  <section class="panel"><h2>Conexão</h2><div class="pad" style="display:grid;gap:12px">
+   <div><label class="l" for="rn-amb">Ambiente</label><select id="rn-amb">${['Homologação','Produção'].map(o=>`<option${RN.amb===o?' selected':''}>${o}</option>`).join('')}</select><div class="sub" style="margin-top:4px">Comece por homologação. Produção só depois do teste de leitura.</div></div>
+   <div><label class="l" for="rn-url">Endereço base da API</label><input id="rn-url" type="text" value="${esc(RN.url)}" style="width:100%"><div class="sub" style="margin-top:4px">Endereço fictício. O real vem da Omnitracs ou do integrador.</div></div>
+   <div><label class="l" for="rn-usr">Usuário de integração</label><input id="rn-usr" type="text" value="${esc(RN.usr)}" autocomplete="off"></div>
+   <div><label class="l" for="rn-pw">Senha</label><input id="rn-pw" type="password" style="width:100%" autocomplete="new-password" placeholder="${RN.pass?'•••••••• (guardada no servidor, simulado)':'Informe para testar'}"><div class="sub" style="margin-top:4px">O protótipo não guarda senha. Nunca digite uma senha real aqui.</div></div>
+   <div><label class="l" for="rn-reg">Região do Roadnet</label><input id="rn-reg" type="text" value="${esc(RN.regiao)}"></div>
+   <div class="row"><div><label class="l" for="rn-freq">Atualizar a cada</label><div class="row"><input id="rn-freq" type="number" min="1" max="60" value="${RN.freq}" style="width:80px"><span class="sub">min</span></div></div><div><label class="l">Modo</label><div><span class="chip">${RN.modo}</span></div></div></div>
+   <div class="row"><button class="btn pri" data-act="rntest">Salvar e testar conexão</button><button class="btn" data-act="rnsync"${c?'':' disabled'}>Importar plano do dia</button><button class="btn" data-act="rnoff"${c?'':' disabled'}>Desconectar</button></div>
+   <div class="sub">${c?`Token válido até ${hhmm(RN.tok)} (simulado). Último contato às ${hhmm(RN.ult)}.`:'Sem sessão. O teste faz o login (POST /login) e uma leitura de rotas (GET /dailyplan/routes).'}</div>
+  </div></section>
+  <section class="panel"><h2>Registro de sincronização</h2><div class="pad">${RNLOG.length?`<ul style="margin:0;padding-left:18px;display:grid;gap:6px">${RNLOG.map(l=>`<li><span style="font-family:var(--f-mono)">${hhmm(l.m)}</span> ${esc(l.t)}</li>`).join('')}</ul>`:'<div class="sub">Nenhuma sincronização ainda.</div>'}</div></section></div>
+  <section class="panel"><h2>Plano importado <small>${prev?prev.length+' rotas · dados fictícios':'importe para ver a prévia'}</small></h2>${prev?`<div class="tw"><table class="wrap"><thead><tr><th>Rota</th><th>Motorista</th><th>Veículo</th><th class="hm">Unidade</th><th class="n">Paradas</th><th class="n">Saída prevista</th><th>Situação</th></tr></thead><tbody>${prev.map(p=>`<tr><td><b>${p.rota}</b></td><td>${esc(p.mot)}</td><td style="font-family:var(--f-mono)">${esc(p.placa)}</td><td class="sub hm">${esc(p.unid)}</td><td class="n">${p.n}</td><td class="n">${p.sai}</td><td>${p.ok?'Igual ao plano da Torre':'Ordem diferente: revisar'}</td></tr>`).join('')}</tbody></table></div>`:`<div class="pad sub">A prévia mostra o que a Torre receberia do Roadnet e se a ordem das paradas bate com o plano atual.</div>`}</section>
+  <section class="panel"><h2>Mapeamento de campos <small>a confirmar com a Omnitracs: os nomes saem do swagger, o conteúdo real ainda não foi visto</small></h2><div class="tw"><table class="wrap"><thead><tr><th>Serviço do Roadnet</th><th>Campo</th><th>Vira na Torre</th><th class="hm">Onde aparece</th></tr></thead><tbody>${RNMAP.map(m=>`<tr><td style="font-family:var(--f-mono)">${m[0]}</td><td style="font-family:var(--f-mono)">${esc(m[1])}</td><td>${m[2]}</td><td class="sub hm">${m[3]}</td></tr>`).join('')}</tbody></table></div></section>`}
+function rnRead(){const g=i=>document.getElementById(i);return{amb:g('rn-amb').value,url:g('rn-url').value.trim(),usr:g('rn-usr').value.trim(),pw:g('rn-pw').value,reg:g('rn-reg').value.trim(),freq:Math.max(1,Math.min(60,+g('rn-freq').value||5))}}
+function rnTest(){const f=rnRead();
+  if(!/^https:\/\/[^\s/]+/.test(f.url)){toast('O endereço precisa começar com https://');return}
+  if(!f.usr){toast('Informe o usuário de integração');return}
+  if(!f.pw&&!RN.pass){toast('Informe a senha para testar');return}
+  RN={...RN,amb:f.amb,url:f.url,usr:f.usr,regiao:f.reg||RN.regiao,freq:f.freq,pass:true,st:'Conectada',ult:demoMin(),tok:demoMin()+60};
+  rnLog(`Login em ${f.amb} aceito (simulado). Leitura de rotas da ${RN.regiao}: ok.`);
+  logAud('Integração',`Conexão Roadnet configurada: ${f.amb}, usuário ${f.usr}, modo somente leitura (simulado, senha não registrada)`,null);
+  render();toast('Conexão simulada com sucesso')}
+function rnSync(){if(!rnOk())return;
+  RN.imp=R.slice().sort((a,b)=>a.id-b.id).map((r,i)=>({rota:lab(r),mot:r.mot,placa:r.placa,unid:r.unid,n:r.stops.length,sai:hhmm(CFG.saidaH*60+CFG.saidaM+(i%3)*5),ok:i%7!==3}));
+  RN.ult=demoMin();const dif=RN.imp.filter(p=>!p.ok).length;
+  rnLog(`Plano do dia importado: ${RN.imp.length} rotas${dif?`, ${dif} com ordem diferente do plano da Torre`:''}.`);
+  logAud('Integração',`Plano do dia importado do Roadnet: ${RN.imp.length} rotas (simulado)`,null);render();toast('Plano importado (simulado)')}
+function rnOff(){RN={...RN,st:'Desconectada',tok:null};rnLog('Conexão encerrada pelo usuário.');logAud('Integração','Conexão Roadnet encerrada (simulado)',null);render();toast('Desconectado')}
 function selRouteOpen(){return (location.hash.match(/^#rota-(\d+)/)||[])[1]}
 function cronNote(r){const C=cron(r),h=m=>{m=Math.round(m);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')},fora=C.out.filter(o=>o.ch>CFG.fimH*60).length;
   return `<div class="pad sub" style="padding-bottom:0">Cronograma previsto: saída do CD às <b>${hhmm(CFG.saidaH*60+CFG.saidaM)}</b>, última parada concluída às <b>${hhmm(C.ult)}</b> e retorno ao CD por volta de <b>${hhmm(C.fim)}</b>. São ${h(C.desl)} de deslocamento e ${h(C.perm)} de permanência no cliente, com velocidade média de ${CFG.velMedia} km/h.${fora?` <b style="color:var(--warn)">${fora} parada${fora>1?'s':''} depois das ${String(CFG.fimH).padStart(2,'0')}:00.</b>`:''} O tempo no cliente segue a classificação do Excel (varejo 30 min, auto-serviço 1h30, atacadista 3h30); a janela de funcionamento ainda não entra no cálculo.</div>`}
@@ -907,7 +947,7 @@ function liberacao(){
 function render(){
   const h=location.hash.slice(1)||'torre';
   if(h.startsWith('rota-')){view='rota';var rid=+h.slice(5)}else if(h.startsWith('viagem-')){view='viagem';var vid=+h.slice(7)}else view=h;
-  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'?parametros():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='supervisor'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista,turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
+  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'?parametros():acessoNegado(),integracao:()=>role==='supervisor'?integracao():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='supervisor'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista,turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
   document.body.dataset.view=view;soundCheck();
   document.getElementById('app').innerHTML=header()+(view==='motorista'?'':feedBanner()+contBanner())+main;
   if(view==='torre'&&vbDirty){vbDirty=false;vb=selRoute?fitRoute(byId(selRoute)):fitAll();redrawMap()}
@@ -975,6 +1015,10 @@ document.addEventListener('click',e=>{
   else if(a==='tclose'){if(e.target===t||t.classList.contains('btn')){TT=null;document.getElementById('layer').innerHTML=''}}
   else if(a==='tsave'){tSave()}
   else if(a==='texp'){tExport()}
+  else if(a==='rntest'){rnTest()}
+  else if(a==='rnsync'){rnSync()}
+  else if(a==='rnoff'){rnOff()}
+  else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
   else if(a==='sigback'){delete STALE[id];logEv(id,'Sinal do motorista restabelecido (simulado)','Sistema');buildAlerts();render();toast('Sinal restabelecido')}
   else if(a==='audchk'){const b=audBad();logAud('Auditoria',b.length?`Verificação de integridade: FALHA na(s) entrada(s) ${b.join(', ')}`:'Verificação de integridade: cadeia íntegra');toast(b.length?'Falha de integridade':'Cadeia íntegra');render()}
   else if(a==='audtamper'){if(AUD_BAK){AUD[AUD_K]=AUD_BAK;AUD_BAK=null}else{AUD_K=1;AUD_BAK=AUD[1];AUD[1]=Object.freeze({...AUD[1],t:AUD[1].t+' [alterado]'})}render()}

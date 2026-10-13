@@ -69,6 +69,7 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .recban .it{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .recban .it .sp{flex:1}
 .alert.cp{padding:8px 12px;gap:4px}.alert.cp .top{justify-content:flex-start}.alert.cp h3{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.alert.cp .row2{display:flex;align-items:center;gap:8px}.alert.cp .row2 .sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qmed{width:100%;text-align:left;padding:10px 12px;background:var(--panel2);border:0;border-bottom:1px solid var(--line);color:var(--fg);font:600 13px var(--f-ui,inherit);cursor:pointer}.chips1{flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:4px}.chips1 .fchip{flex:none}.democtl{display:inline-flex;gap:6px;align-items:center;padding:2px 6px;border:1px dashed var(--line);border-radius:8px}.democtl>span{font:600 10px var(--f-mono);color:var(--mut);letter-spacing:.08em}.democtl .btn{font-size:11px}
+.sm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:12px;max-height:620px;overflow:auto}.sm-t{display:grid;gap:3px;text-align:left;padding:8px 9px;border-radius:8px;border:1px solid var(--line);border-left-width:5px;background:var(--panel2);color:var(--fg);cursor:pointer;font:inherit;min-height:74px}.sm-t:hover,.sm-t.sel{background:var(--panel);box-shadow:0 0 0 2px var(--fg) inset}.sm-t b{font:700 13px var(--f-mono)}.sm-t .l{font-size:11px;color:var(--mut)}.sm-t .n{font:700 18px var(--f-mono);line-height:1}.sm-t.v{border-left-color:var(--bad)}.sm-t.a{border-left-color:var(--warn)}.sm-t.g{border-left-color:var(--ok)}.sm-t.c{opacity:.6}.sm-t .bar{height:5px}.tabs2{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle}.sm-leg{display:flex;gap:14px;flex-wrap:wrap;padding:8px 12px 0;font-size:12px;color:var(--mut)}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -468,6 +469,15 @@ function drawer(){
   <div class="row" style="margin:12px 0">${st.A?`<button class="btn pri sm" data-act="treat" data-id="${st.A.id}">Tratar</button>`:''}<a class="btn sm" href="#rota-${r.id}" style="text-decoration:none">Abrir rota</a><button class="btn sm" data-act="clear">Fechar</button></div>
   <div class="sub" style="font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Paradas</div>
   ${r.stops.map((x,i)=>`<button class="dl dbtn" data-zstop="${x.nf}"><span class="sub" style="font-family:var(--f-mono)">${i+1}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.cli)}</span>${stChip(x.st)}</button>`).join('')}</div>`}
+let vw='sem';
+const SEMS={v:['▲','Alta','var(--bad)'],a:['◆','Atenção','var(--warn)'],g:['●','No prazo','var(--ok)'],c:['✓','Concluída','var(--ok)']};
+function semOf(r){const A=ALERTS.filter(a=>a.rota===r.id&&a.estado==='Novo'),now=demoMin();if(A.some(a=>a.sev===2||(a.recontato&&a.recontato<=now)))return 'v';if(A.length)return 'a';return ativa(r)?'g':'c'}
+function semaforo(){
+  const ord={v:0,a:1,g:2,c:3},L=R.filter(rMatch).map(r=>({r,k:semOf(r),p:r.stops.filter(x=>x.st==='Pendente').length})).sort((a,b)=>ord[a.k]-ord[b.k]||b.p-a.p||a.r.id-b.r.id);
+  const cnt=k=>L.filter(x=>x.k===k).length;
+  return `<div class="sm-leg"><span style="color:var(--bad)">▲ Alta ${cnt('v')}</span><span style="color:var(--warn)">◆ Atenção ${cnt('a')}</span><span style="color:var(--ok)">● No prazo ${cnt('g')}</span><span>✓ Concluída ${cnt('c')}</span><span>Número = NFs pendentes · barra = entregues · clique para o detalhe</span></div>
+  <div class="sm" role="list">${L.map(({r,k,p})=>{const [sy,lb]=SEMS[k],s2=stats(r.stops),A=ALERTS.find(a=>a.rota===r.id&&a.estado==='Novo');
+    return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}${A?' · '+esc(A.kind):''}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span style="margin-left:auto;color:${SEMS[k][2]}" aria-hidden="true">${sy}</span></span><span class="n">${p}</span><span class="l">${lb} · ${s2.Entregue}/${r.stops.length}</span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>`}
 function mapFilters(){
   const c=(k,v,l)=>`<button class="fchip ${mf[k]===v?'on':''}" data-act="mf" data-k="${k}" data-v="${v}">${l}</button>`;
   return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button></div>`}
@@ -508,10 +518,10 @@ function torre(){
   const done=ALERTS.filter(a=>a.estado!=='Novo');
   return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>gravidade e espera</small></h2>
   ${queueBar()}<div class="queue">${queueList(open)}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
-  <section class="panel"><h2>Mapa das rotas <small>${R.length} rotas · um marcador por rota</small></h2>${mapFilters()}
-  <div class="mapwrap"><div class="mapbox" id="mapbox">${mapSVG()}
-  <div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>
-  <div class="legend"><span style="color:var(--bad)">■ Alerta alto</span><span style="color:var(--warn)">● Alerta médio</span><span style="color:var(--info)">● Em andamento</span><span style="color:var(--ok)">● Concluída</span><span class="sub">Número = NFs pendentes · mapa esquemático</span></div></div>
+  <section class="panel"><h2>${vw==='sem'?'Semáforo das rotas':'Mapa das rotas'} <span class="tabs2"><button class="fchip ${vw==='sem'?'on':''}" data-act="vw" data-v="sem">Semáforo</button><button class="fchip ${vw==='mapa'?'on':''}" data-act="vw" data-v="mapa">Mapa</button></span> <small>${R.length} rotas · um quadrado por rota</small></h2>${mapFilters()}
+  <div class="mapwrap"><div class="mapbox" id="mapbox" ${vw==='sem'?'style="height:auto;min-height:0;overflow:visible"':''}>${vw==='sem'?semaforo():mapSVG()}
+  ${vw==='sem'?'':`<div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>`}
+  ${vw==='sem'?'':`<div class="legend"><span style="color:var(--bad)">■ Alerta alto</span><span style="color:var(--warn)">● Alerta médio</span><span style="color:var(--info)">● Em andamento</span><span style="color:var(--ok)">● Concluída</span><span class="sub">Número = NFs pendentes · mapa esquemático</span></div>`}</div>
   <aside class="drawer" id="drawer">${drawer()}</aside></div></section></div>`}
 
 /* ---- encerramento da viagem ---- */
@@ -1011,7 +1021,9 @@ document.addEventListener('click',e=>{
   if(a==='treat'){e.stopPropagation();openTreat(byId(ALERTS.find(x=>x.id===t.dataset.id).rota).id,t.dataset.id)}
   else if(a==='treat-route')openTreat(id,null);
   else if(a==='contact'){openTreat(id,null);tr.log=true}
-  else if(a==='focus'){e.stopPropagation();selectRoute(id)}
+  else if(a==='focus'){e.stopPropagation();vw='mapa';selectRoute(id)}
+  else if(a==='vw'){vw=t.dataset.v;vbDirty=true;render()}
+  else if(a==='semsel'){selRoute=id;selAlert=ALERTS.find(x=>x.rota===id&&x.estado==='Novo')?.id||null;drawerOpen=true;render()}
   else if(a==='mf'){mf[t.dataset.k]=(t.dataset.k==='dono'&&mf.dono===t.dataset.v)?'':t.dataset.v;render()}
   else if(a==='drawer'){drawerOpen=!drawerOpen;render()}
   else if(a==='clear'){selRoute=null;selAlert=null;vbDirty=true;render()}

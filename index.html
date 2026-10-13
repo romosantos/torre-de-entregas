@@ -104,6 +104,7 @@ body[data-view=motorista] .phone{border:0;border-radius:0;height:auto;min-height
 body[data-view=motorista] .ph-b{overflow:visible}
 }
 .backlink{display:none}
+.backlink.sair{display:inline-flex!important;align-items:center;min-height:44px;color:var(--fg);text-decoration:none;font-weight:600}
 .mapbox{position:relative;height:calc(100vh - 300px);min-height:380px;overflow:hidden;border-radius:0 0 8px 8px;background:var(--panel2)}
 .mapbox svg{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .mapbox .zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:4px}
@@ -272,7 +273,7 @@ R.forEach(r=>{
   e.sort((a,b)=>a.m-b.m);
 });
 /* auditoria: registro encadeado por selo (append-only). Em produção: banco somente-inserção com carimbo de tempo do servidor. */
-const actor=()=>role==='admin'?'Administrador':role==='supervisor'?'Supervisor':(COB[role]?role:'Analista A');
+const actor=()=>role==='motorista'?'Motorista':role==='admin'?'Administrador':role==='supervisor'?'Supervisor':(COB[role]?role:'Analista A');
 const h32=x=>{let h=2166136261;for(let i=0;i<x.length;i++){h^=x.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')};
 let AUD=[],AUD_K=null,AUD_BAK=null;
 const audHash=(pv,e)=>h32(pv+'|'+e.seq+'|'+e.m+'|'+e.u+'|'+e.tipo+'|'+e.rota+'|'+e.t);
@@ -280,7 +281,7 @@ function logAud(tipo,t,rota,u){const pv=AUD.length?AUD[AUD.length-1].h:'00000000
 function audBad(){const o=[];let pv='00000000';for(const e of AUD){if(audHash(pv,e)!==e.h)o.push(e.seq);pv=e.h}return o}
 const logEv=(rid,t,u)=>{u=u||actor();EV[rid].push({m:demoMin(),t,u});logAud('Evento da rota',t,rid,u)};
 /* parâmetros operacionais (configuráveis na tela Parâmetros) */
-const CFG0={saidaH:6,saidaM:10,fimH:18,velMedia:25,fatorVia:30,permCBD:60,metaResp:10,metaSla:80,somAtivo:1,posAtraso:10,slaAlta:10,slaMedia:20,recDef:10,rec1:10,rec2:20,rec3:30,tentEscala:3,atrasoQtd:4,atrasoPct:60,fpMax:30,fpMin:5};
+const CFG0={saidaH:6,saidaM:10,fimH:18,velMedia:25,fatorVia:30,permCBD:60,metaResp:10,metaSla:80,somAtivo:1,posAtraso:10,slaAlta:10,slaMedia:20,recDef:10,rec1:10,rec2:20,rec3:30,tentEscala:3,atrasoQtd:4,atrasoPct:60,fpMax:30,fpMin:5,atrasoPrev:15};
 const CFG={...CFG0};
 /* exceções de parâmetros por cliente ou por rota */
 const OVK=['slaAlta','slaMedia','tentEscala','recDef','posAtraso'];
@@ -302,6 +303,17 @@ const lastData=r=>FEED.down?Math.min(FEED.since,STALE[r.id]??1e9):(STALE[r.id]??
 const agoMin=r=>Math.max(0,demoMin()-lastData(r));
 const agoTxt=r=>{const a=agoMin(r);return a<1?'agora':'há '+Math.round(a)+' min'};
 const isStale=r=>ativa(r)&&agoMin(r)>cfgOf(r.id,'posAtraso');
+/* previsão com trânsito (SIMULADA): curva por hora do dia + modo da demo. Em produção, vem de um serviço de trânsito (Google Routes, HERE, TomTom ou Roadnet) */
+const TRAF={modo:'Normal'};
+const trafF=m=>{const h=(m/60)%24,c=(h>=7&&h<9.5)?1.35:(h>=12&&h<14)?1.15:(h>=16.5&&h<19.5)?1.45:1;return c*(TRAF.modo==='Intenso'?1.35:1)};
+function prevTr(r){ // da posição atual até as paradas pendentes: previsto (sem trânsito) x com trânsito
+  const pend=r.stops.filter(s=>s.st==='Pendente');if(!pend.length)return [];
+  const feitas=r.stops.filter(s=>s.st!=='Pendente');let pos=feitas.length?feitas[feitas.length-1]:DEPOT,t0=demoMin(),t1=t0,lastC=null;const out=[];
+  pend.forEach(x=>{if(lastC&&lastC===x.cli){out.push({x,pv:out[out.length-1].pv,tr:out[out.length-1].tr,d:out[out.length-1].d,igual:true});return}
+    const base=km(pos,x)*(1+CFG.fatorVia/100)/CFG.velMedia*60,pm=permOf(x);
+    t0+=base;t1+=base*trafF(t1);const pv=t0,tr=t1;t0+=pm;t1+=pm;pos=x;lastC=x.cli;out.push({x,pv,tr,d:tr-pv})});
+  return out}
+const atrasoPrevisto=r=>ativa(r)?prevTr(r).filter(o=>!o.igual&&o.d>=CFG.atrasoPrev):[];
 /* alertas (um caso por rota) */
 let ALERTS=[];
 function buildAlerts(){
@@ -315,6 +327,7 @@ function buildAlerts(){
         if(s.motivo==='FORA DE HORARIO'){sev=2;kind=kind||'Entrega fora do horário'}else{sev=Math.max(sev,1);kind=kind||'Reentrega solicitada'}}
     });
     if(!FEED.down&&ativa(r)&&STALE[r.id]!=null&&demoMin()-STALE[r.id]>cfgOf(r.id,'posAtraso')){it.push(`Sem dados do motorista há ${Math.round(demoMin()-STALE[r.id])} min (último às ${hhmm(STALE[r.id])})`);sev=Math.max(sev,1);kind=kind||'Perda de sinal'}
+    {const ap=atrasoPrevisto(r);if(ap.length){const w=ap.reduce((a,b)=>b.d>a.d?b:a);it.push(`Atraso previsto com trânsito: NF ${w.x.nf} · ${w.x.cli} deve chegar às ${hhmm(w.tr)}, ${Math.round(w.d)} min depois do previsto${ap.length>1?` (e mais ${ap.length-1} parada${ap.length>2?'s':''})`:''}`);sev=Math.max(sev,1);kind=kind||'Atraso previsto'}}
     const foco=r.stops.find(s=>s.st==='Devolvida'||s.st==='Reentrega')||null;
     const p=r.stops.filter(s=>s.st==='Pendente').length;
     if(p>=CFG.atrasoQtd&&p/r.stops.length>=CFG.atrasoPct/100){it.push(`${p} de ${r.stops.length} NFs ainda pendentes na rota`);sev=Math.max(sev,1);kind=kind||'Rota atrasada'}
@@ -330,7 +343,7 @@ function buildAlerts(){
 buildAlerts();
 const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 /* ============ estado de UI ============ */
-let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor'&&role!=='admin')role='Analista A'}catch(e){}
+let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor'&&role!=='admin'&&role!=='motorista')role='Analista A'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
 let qf='todos';
@@ -364,10 +377,10 @@ function feedBanner(){
   const st=R.filter(isStale);
   return st.length?`<div class="recban info"><b style="color:var(--fg)">⚠ ${st.length} rota${st.length>1?'s':''} sem dado há mais de ${CFG.posAtraso} min:</b> ${st.map(r=>`<a href="#rota-${r.id}">${lab(r)} (${agoTxt(r)})</a>`).join(', ')}. Cada uma abre um alerta de perda de sinal.</div>`:''}
 function header(){
-  const sup=role==='supervisor',adm=role==='admin',nav=adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Rotas'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia'],['motorista','App do motorista']];
-  return `<header><a class="backlink" href="#torre">← Painel de controle</a><div class="brand"><i></i>Torre de Entregas</div>
+  const sup=role==='supervisor',adm=role==='admin',mot=role==='motorista',nav=mot?[['motorista','App do motorista']]:adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Frota própria'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia']];
+  return `<header>${mot?`<a class="backlink sair" href="#torre" data-act="motexit">← Sair do app (demo)</a>`:`<a class="backlink" href="#torre">← Painel de controle</a>`}<div class="brand"><i></i>Torre de Entregas</div>
   <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
-  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
+  <div class="meta"><span class="chip demo">Dados fictícios</span><span>Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option><option value="motorista" ${mot?'selected':''}>Motorista (app)</option></select><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed (demo)':'Simular queda do feed (demo)'}</button><button class="btn sm" data-act="traf" title="Apenas para a demonstração: simula trânsito intenso nas previsões">${TRAF.modo==='Intenso'?'Trânsito normal (demo)':'Trânsito intenso (demo)'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min (demo)</button></div></header>`}
 /* ---- mapa ---- */
 const PX=lon=>(lon+47.45)*900, PY=lat=>(-22.62-lat)*900;
 const ZONES=[['São Paulo',-23.55,-46.63,.16],['Guarulhos',-23.46,-46.53,.07],['Osasco',-23.53,-46.79,.06],['Santo André / SBC',-23.68,-46.55,.08],['Caieiras',-23.36,-46.74,.05],['Jundiaí',-23.19,-46.88,.09],['Campinas',-22.91,-47.06,.10],['Americana',-22.74,-47.33,.07],['Santos',-23.96,-46.33,.07],['Mogi das Cruzes',-23.52,-46.19,.08]];
@@ -570,7 +583,7 @@ function tExport(){const H=['FILIAL','PEDIDO','DATA DE EMISSÃO PEDIDO','NF','DA
 /* ---- integração Roadnet: conexão padrão (simulada, sem rede e sem credencial real) ---- */
 const RN0={amb:'Homologação',url:'https://roadnet.exemplo.invalid/integration',usr:'svc_torre',regiao:'Região Sul',freq:5,modo:'Somente leitura',pass:false,st:'Não configurada',tok:null,ult:null,imp:null};
 let RN={...RN0},RNLOG=[];
-const RNMAP=[['dailyplan/routes','routeIdentity','Rota (código)','Rotas'],['dailyplan/routes','workerIdentity','Motorista','Rotas'],['dailyplan/routes','equipmentIdentity','Veículo (placa)','Rotas'],['dailyplan/routes','stops[].sequenceNumber','Ordem planejada da parada','Rota · paradas'],['dailyplan/routes','stops[].plannedArrival / plannedDeparture','Horário previsto de chegada e saída','Cronograma'],['dailyplan/orders','orderNumber','NF / pedido da parada','Rota · paradas'],['reports/routeactuals','stops[].actualArrival','Chegada real (coluna Ordem real)','Rota · paradas'],['reports/equipmentpositions','latitude, longitude, timestamp','Posição do veículo','Mapa e alerta de perda de sinal'],['events/{subscriber}','eventos do assinante','Atualizações sem consulta repetida','Fila de alertas'],['admin/equipmentType','capacity','Capacidade do veículo','Formação de carga']];
+const RNMAP=[['dailyplan/routes','routeIdentity','Rota (código)','Rotas'],['dailyplan/routes','workerIdentity','Motorista','Rotas'],['dailyplan/routes','equipmentIdentity','Veículo (placa)','Rotas'],['dailyplan/routes','stops[].sequenceNumber','Ordem planejada da parada','Rota · paradas'],['dailyplan/routes','stops[].plannedArrival / plannedDeparture','Horário previsto de chegada e saída','Cronograma'],['dailyplan/orders','orderNumber','NF / pedido da parada','Rota · paradas'],['reports/routeactuals','stops[].actualArrival','Chegada real (coluna Ordem real)','Rota · paradas'],['reports/equipmentpositions','latitude, longitude, timestamp','Posição do veículo','Mapa e alerta de perda de sinal'],['events/{subscriber}','eventos do assinante','Atualizações sem consulta repetida','Fila de alertas'],['admin/equipmentType','capacity','Capacidade do veículo','Formação de carga'],['Serviço de trânsito (a escolher: Google Routes, HERE, TomTom)','duração com trânsito, por trecho e horário','Previsão com trânsito por parada','Alerta de atraso previsto']];
 function rnLog(t){RNLOG.unshift({m:demoMin(),t});RNLOG=RNLOG.slice(0,12)}
 function rnOk(){return RN.st==='Conectada'}
 function integracao(){
@@ -608,6 +621,9 @@ function rnSync(){if(!rnOk())return;
   logAud('Integração',`Plano do dia importado do Roadnet: ${RN.imp.length} rotas (simulado)`,null);render();toast('Plano importado (simulado)')}
 function rnOff(){RN={...RN,st:'Desconectada',tok:null};rnLog('Conexão encerrada pelo usuário.');logAud('Integração','Conexão Roadnet encerrada (simulado)',null);render();toast('Desconectado')}
 function selRouteOpen(){return (location.hash.match(/^#rota-(\d+)/)||[])[1]}
+function trafNote(r){const P=prevTr(r);if(!P.length)return '';const ap=atrasoPrevisto(r).length;
+  return `<section class="panel" style="margin-top:12px"><h2>Previsão com trânsito <small>simulada · ${TRAF.modo==='Intenso'?'trânsito intenso (demo)':'curva por hora do dia'}</small></h2><div class="pad sub">Da posição atual até cada parada pendente: o "previsto" usa a velocidade do plano, e "com trânsito" aplica o trânsito esperado para o horário. ${ap?`<b style="color:var(--warn)">${ap} parada${ap>1?'s' :''} acima do limite de ${CFG.atrasoPrev} min.</b>`:'Nenhuma parada acima do limite.'} Em produção, esses tempos viriam de um serviço de trânsito em tempo real e não incluem o tempo de descarga além do já planejado.</div>
+  <div class="tw"><table class="wrap"><thead><tr><th>NF</th><th>Cliente</th><th class="n">Previsto</th><th class="n">Com trânsito</th><th class="n">Atraso</th></tr></thead><tbody>${P.filter(o=>!o.igual).map(o=>`<tr><td style="font-family:var(--f-mono)">${o.x.nf}</td><td>${esc(o.x.cli)}</td><td class="n">${hhmm(o.pv)}</td><td class="n">${hhmm(o.tr)}</td><td class="n"><b style="color:${o.d>=CFG.atrasoPrev?'var(--bad)':'inherit'}">+${Math.round(o.d)} min</b></td></tr>`).join('')}</tbody></table></div></section>`}
 function cronNote(r){const C=cron(r),h=m=>{m=Math.round(m);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')},fora=C.out.filter(o=>o.ch>CFG.fimH*60).length;
   return `<div class="pad sub" style="padding-bottom:0">Cronograma previsto: saída do CD às <b>${hhmm(CFG.saidaH*60+CFG.saidaM)}</b>, última parada concluída às <b>${hhmm(C.ult)}</b> e retorno ao CD por volta de <b>${hhmm(C.fim)}</b>. São ${h(C.desl)} de deslocamento e ${h(C.perm)} de permanência no cliente, com velocidade média de ${CFG.velMedia} km/h.${fora?` <b style="color:var(--warn)">${fora} parada${fora>1?'s':''} depois das ${String(CFG.fimH).padStart(2,'0')}:00.</b>`:''} O tempo no cliente segue a classificação do Excel (varejo 30 min, auto-serviço 1h30, atacadista 3h30); a janela de funcionamento ainda não entra no cálculo.</div>`}
 function ordNote(r){const k=ordKm(r),c=r.stops.length,eco=k.xls>0?Math.round((1-k.plan/k.xls)*100):0,f=v=>v.toFixed(1).replace('.',',');
@@ -621,7 +637,7 @@ function rota(id){
   <a class="btn" href="#viagem-${id}" style="text-decoration:none">Relatório da viagem</a><button class="btn" data-act="contact" data-id="${id}">Registrar contato</button><button class="btn pri" data-act="treat-route" data-id="${id}">Tratar rota</button></div>
   <div class="kpis"><a class="kpi" href="#rotas" data-go="rota:ALL" data-rid="${id}" title="Ver a lista"><b>${s.n}</b><span>Paradas</span></a><a class="kpi k-ok" href="#rotas" data-go="rota:Entregue" data-rid="${id}" title="Ver a lista"><b>${s.Entregue}</b><span>Entregues</span></a><a class="kpi k-info" href="#rotas" data-go="rota:Pendente" data-rid="${id}" title="Ver a lista"><b>${s.Pendente}</b><span>Pendentes</span></a><a class="kpi k-warn" href="#rotas" data-go="rota:Reentrega" data-rid="${id}" title="Ver a lista"><b>${s.Reentrega}</b><span>Reentregas</span></a><a class="kpi k-bad" href="#rotas" data-go="rota:Devolvida" data-rid="${id}" title="Ver a lista"><b>${s.Devolvida}</b><span>Devoluções</span></a><a class="kpi" href="#rotas" data-go="rota:ALL" data-rid="${id}" title="Ver a lista"><b>${fmt$(s.val)}</b><span>${fmtN(Math.round(s.peso))} kg</span></a></div>
   ${al.map(a=>`<div class="note" style="border-left:4px solid var(--${a.sev===2?'bad':'warn'})"><h3>${a.kind}</h3>${a.itens.map(i=>esc(i)).join('<br>')}</div>`).join('')}
-  ${encPanel(r)}<div class="two"><section class="panel"><h2>Paradas e NFs <small>${r.manual?'ordem ajustada pelo operador':'ordem sugerida por proximidade a partir do CD'}</small></h2>${ordNote(r)}${cronNote(r)}<div class="tw"><table><thead><tr><th>#</th><th>Cliente</th><th>Cidade</th><th class="n">Trecho</th><th>Chegada prev.</th><th>NF</th><th>Janela</th><th class="n">Valor</th><th>Situação</th><th>Motivo</th><th>Ordem real</th></tr></thead><tbody>
+  ${encPanel(r)}${trafNote(r)}<div class="two"><section class="panel"><h2>Paradas e NFs <small>${r.manual?'ordem ajustada pelo operador':'ordem sugerida por proximidade a partir do CD'}</small></h2>${ordNote(r)}${cronNote(r)}<div class="tw"><table><thead><tr><th>#</th><th>Cliente</th><th>Cidade</th><th class="n">Trecho</th><th>Chegada prev.</th><th>NF</th><th>Janela</th><th class="n">Valor</th><th>Situação</th><th>Motivo</th><th>Ordem real</th></tr></thead><tbody>
   ${r.stops.map((x,i)=>`<tr><td style="white-space:nowrap">${i+1} <span class="sub"><button class="btn" style="padding:0 5px" data-act="mv" data-nf="${x.nf}" data-d="-1" aria-label="Subir parada" ${i===0?'disabled':''}>↑</button><button class="btn" style="padding:0 5px" data-act="mv" data-nf="${x.nf}" data-d="1" aria-label="Descer parada" ${i===r.stops.length-1?'disabled':''}>↓</button></span></td><td>${esc(x.cli)}</td><td>${esc(x.cidade)}</td><td class="n sub">${legKm(r,i).toFixed(1).replace('.',',')} km</td><td class="sub" style="white-space:nowrap">${hhmm(cronAt(r,i).ch)}${cronAt(r,i).ch>CFG.fimH*60?' <span class="chip" style="font-size:10px">após o fim da jornada</span>':''}<br>${cronAt(r,i).p?`fica ${cronAt(r,i).p>=60?Math.floor(cronAt(r,i).p/60)+'h'+(cronAt(r,i).p%60?String(cronAt(r,i).p%60).padStart(2,'0'):''):cronAt(r,i).p+' min'}`:'mesma visita'}</td><td style="font-family:var(--f-mono)">${x.nf}</td><td class="sub">${JAN[x.janela]||x.janela}</td><td class="n">${fmt$(x.valor)}</td><td>${stChip(x.st)}</td><td class="sub">${esc(MOT[x.motivo]||'')}</td><td class="sub">${realTxt(r,x,i)}</td></tr>`).join('')}</tbody></table></div></section>
   <section class="panel"><h2>Linha do tempo <small>eventos não editáveis · com autor</small></h2><ul class="tl">${ev.map(e=>`<li><time>${hhmm(e.m)}</time><span>${esc(e.t)} <small class="sub">· ${esc(e.u||'Sistema')}</small></span></li>`).join('')}</ul></section></div>`}
 /* ---- ocorrências ---- */
@@ -680,6 +696,7 @@ function nfs(){
 const PAR=[
  ['Prazos de resposta (SLA)',[['slaAlta','Alerta alto','min',1,120,'Tempo para a primeira tratativa de um alerta de gravidade alta.'],['slaMedia','Alerta médio','min',1,240,'Tempo para a primeira tratativa de um alerta de gravidade média.']]],
  ['Recontato e escalonamento',[['recDef','Recontato sugerido sem resposta','min',1,120,'Intervalo sugerido quando o contato não atende, está ocupado ou com sinal ruim.'],['rec1','Opção de recontato 1','min',0,240,'Botões de recontato na tratativa. Use 0 para ocultar.'],['rec2','Opção de recontato 2','min',0,240,''],['rec3','Opção de recontato 3','min',0,240,''],['tentEscala','Tentativas sem resposta até escalar','tentativas',0,10,'Ao atingir o limite, o caso é escalado ao supervisor. Use 0 para desligar o escalonamento automático.']]],
+ ['Atraso previsto com trânsito',[['atrasoPrev','Atraso previsto que gera alerta','min',5,180,'Quando a previsão com trânsito de uma parada passa do previsto por mais que isto, a rota ganha um alerta de atraso previsto.']]],
  ['Regra de rota atrasada',[['atrasoQtd','Mínimo de NFs pendentes','NFs',1,50,'A rota só gera alerta com pelo menos esta quantidade de NFs pendentes.'],['atrasoPct','Percentual mínimo pendente','%',1,100,'e com pelo menos este percentual das NFs da rota ainda pendente.']]],
  ['Frescor dos dados',[['posAtraso','Dado considerado atrasado após','min',1,120,'Sem dado do motorista por mais tempo que isto, a rota mostra o indicador de atraso e abre um alerta de perda de sinal. Se o feed inteiro cair, o aviso é geral e os alertas por rota são suprimidos.']]],
  ['Planejamento da rota',[['saidaH','Saída do CD (hora)','h',0,23,'Horário padrão de saída das rotas. O cronograma de cada rota parte daqui.'],['saidaM','Saída do CD (minutos)','min',0,59,'Minutos da hora de saída.'],['velMedia','Velocidade média no trânsito','km/h',5,80,'Usada para estimar o tempo de deslocamento entre paradas. Na versão real, vem do serviço de rotas com trânsito.'],['fatorVia','Acréscimo da rua sobre a linha reta','%',0,100,'A distância é em linha reta; este acréscimo aproxima o percurso por ruas.'],['permCBD','Permanência do CBD','min',5,480,'Tempo de permanência quando o cliente é CBD. Varejo 30 min, auto-serviço 1h30 e atacadista 3h30 vêm da classificação do cliente no Excel.'],['fimH','Fim da jornada (hora)','h',1,23,'Paradas previstas depois deste horário são marcadas no cronograma.']]],
@@ -948,8 +965,9 @@ function render(){
   const h=location.hash.slice(1)||'torre';
   if(h.startsWith('rota-')){view='rota';var rid=+h.slice(5)}else if(h.startsWith('viagem-')){view='viagem';var vid=+h.slice(7)}else view=h;
   if(role==='admin'&&!['integracao','auditoria','parametros'].includes(view)){location.hash='#integracao';return}
-  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'||role==='admin'?parametros():acessoNegado(),integracao:()=>role==='admin'?integracao():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='admin'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista,turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
-  document.body.dataset.view=view;soundCheck();
+  if(role==='motorista'&&view!=='motorista'){location.hash='#motorista';return}
+  let main=view==='viagem'?relViagem(vid):{torre,rotas,transportadoras,ocorrencias,nfs,clientes,parametros:()=>role==='supervisor'||role==='admin'?parametros():acessoNegado(),integracao:()=>role==='admin'?integracao():acessoNegado(),supervisor:()=>role==='supervisor'?supervisor():acessoNegado(),auditoria:()=>role==='admin'?auditoria():acessoNegado(),desempenho:()=>role==='supervisor'?desempenho():acessoNegado(),contingencia,relatorio,motorista:()=>role==='motorista'?motorista():acessoNegado(),turno,liberacao}[view]?.()||(view==='rota'?rota(rid):torre());
+  document.body.dataset.view=(view==='motorista'&&role!=='motorista')?'negado':view;soundCheck();
   document.getElementById('app').innerHTML=header()+(view==='motorista'?'':feedBanner()+contBanner())+main;
   if(view==='torre'&&vbDirty){vbDirty=false;vb=selRoute?fitRoute(byId(selRoute)):fitAll();redrawMap()}
 }
@@ -1020,6 +1038,8 @@ document.addEventListener('click',e=>{
   else if(a==='rnsync'){rnSync()}
   else if(a==='rnoff'){rnOff()}
   else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
+  else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
+  else if(a==='traf'){TRAF.modo=TRAF.modo==='Intenso'?'Normal':'Intenso';buildAlerts();logAud('Integração','Trânsito simulado: '+TRAF.modo+' (demo)',null);render();toast('Trânsito '+TRAF.modo.toLowerCase()+' (simulado)')}
   else if(a==='sigback'){delete STALE[id];logEv(id,'Sinal do motorista restabelecido (simulado)','Sistema');buildAlerts();render();toast('Sinal restabelecido')}
   else if(a==='audchk'){const b=audBad();logAud('Auditoria',b.length?`Verificação de integridade: FALHA na(s) entrada(s) ${b.join(', ')}`:'Verificação de integridade: cadeia íntegra');toast(b.length?'Falha de integridade':'Cadeia íntegra');render()}
   else if(a==='audtamper'){if(AUD_BAK){AUD[AUD_K]=AUD_BAK;AUD_BAK=null}else{AUD_K=1;AUD_BAK=AUD[1];AUD[1]=Object.freeze({...AUD[1],t:AUD[1].t+' [alterado]'})}render()}
@@ -1062,7 +1082,7 @@ document.addEventListener('change',e=>{
   if(i==='nf-q'){nfFilt.q=e.target.value;render();return}
   if(i==='aud-tipo'){audF.tipo=e.target.value;render();return}
   if(i==='aud-q'){audF.q=e.target.value;render();return}
-  if(i==='role-sel'){const antes=role;role=e.target.value;if(role!=='supervisor'&&role!=='admin'){qf='meus';uf=''}else{qf='todos';uf=''}logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='admin'){location.hash='#integracao'}else if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'||h==='integracao'){location.hash='#torre'}render();return}
+  if(i==='role-sel'){const antes=role;role=e.target.value;if(role!=='supervisor'&&role!=='admin'&&role!=='motorista'){qf='meus';uf=''}else{qf='todos';uf=''}logAud('Acesso',`Perfil alterado de ${antes} para ${role} (simulado)`);try{localStorage.setItem('torre_role',role)}catch(x){}const h=location.hash.slice(1);if(role==='motorista'){location.hash='#motorista'}else if(role==='admin'){location.hash='#integracao'}else if(role==='supervisor'){location.hash='#supervisor'}else if(h==='parametros'||h==='supervisor'||h==='auditoria'||h==='desempenho'||h==='integracao'||h==='motorista'){location.hash='#torre'}render();return}
   if(i==='f-st'){filt.st=e.target.value;render()}else if(i==='f-mot'){filt.motivo=e.target.value;render()}else if(i==='f-area'){filt.area=e.target.value;render()}
   else if(i==='d-sel'){drv.rota=+e.target.value;drv.step='list';render()}
 });

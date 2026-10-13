@@ -807,6 +807,8 @@ function relatorio(){
   <section class="panel"><h2>Por canal <small>janela de recebimento</small></h2><div class="tw"><table><thead><tr><th>Canal</th><th class="n">NFs</th><th class="n">% entregue</th><th class="n">Valor</th></tr></thead><tbody>${Object.entries(canal).sort((a,b)=>b[1].length-a[1].length).map(([k,v])=>{const c=stats(v);return `<tr><td>${JAN[k]||k}</td><td class="n">${c.n}</td><td class="n">${pct(c.Entregue,c.n)}%</td><td class="n">${fmt$(c.val)}</td></tr>`}).join('')}</tbody></table></div>
   <div class="pad sub">${esc(resumoTxt())}</div></section></div>${qualidade()}`}
 /* ---- app do motorista ---- */
+function dTimerHtml(x){const prev=permOf(x),el=Math.max(0,demoMin()-(drv.t||demoMin())),pct=el/prev,mm=Math.floor(el),ss=Math.floor((el-mm)*60),cl=pct>1?'var(--bad)':pct>=0.8?'var(--warn)':'var(--ok,#3ecf8e)',dif=Math.round(Math.abs(prev-el));
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="sub">No cliente</span><span class="sub">Previsto ${prev} min</span></div><div style="font:700 34px var(--f-mono);color:${cl};letter-spacing:.02em" aria-live="off">${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}</div><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${prev}" aria-valuenow="${Math.min(mm,prev)}" style="margin:6px 0"><span style="display:block;height:100%;width:${Math.min(100,pct*100)}%;background:${cl}"></span></div><div style="font-weight:600;color:${cl}">${pct>1?`Passou ${dif} min do previsto`:pct>=0.8?`Quase no limite: restam ${dif} min`:`Dentro do previsto: restam ${dif} min`}</div>`}
 function motorista(){
   if(!drv.rota){const c=R.filter(r=>r.stops.length>=6&&stats(r.stops).Pendente>=3);drv.rota=(c[0]||R[0]).id}
   const r=byId(drv.rota),s=stats(r.stops);
@@ -817,9 +819,9 @@ function motorista(){
   }else{
     const x=r.stops.find(z=>z.nf===drv.stop);
     const head=`<div class="ph-h"><button class="btn sm" data-act="back" style="justify-self:start">← Paradas</button><b>${esc(x.cli)}</b><span class="sub">${esc(x.cidade)} · NF ${x.nf} · ${fmt$(x.valor)} · ${fmtN(x.peso)} kg</span></div>`;
-    if(drv.step==='stop')body=head+`<div class="ph-b"><div>${stChip(x.st)}</div><div class="note">Janela de recebimento: ${JAN[x.janela]||x.janela}. O cronômetro começa quando você marca a chegada.</div>
+    if(drv.step==='stop')body=head+`<div class="ph-b"><div>${stChip(x.st)}</div><div class="note">Janela de recebimento: ${JAN[x.janela]||x.janela}. Tempo previsto no cliente: ${permOf(x)} min. O cronômetro começa quando você marca a chegada.</div>
       <button class="big pri" data-act="arrive">Cheguei no cliente</button><button class="big" data-act="fail">Não consegui entregar</button></div>`;
-    if(drv.step==='deliver')body=head+`<div class="ph-b"><div class="note">Chegada registrada às ${hhmm(drv.t||demoMin())}. Confirme quem recebeu.</div>
+    if(drv.step==='deliver')body=head+`<div class="ph-b"><div class="note">Chegada registrada às ${hhmm(drv.t||demoMin())}. Confirme quem recebeu.</div><div class="note" id="dtimer" role="timer">${dTimerHtml(x)}</div>
       <div><label class="l" for="d-rec">Quem recebeu</label><input type="text" id="d-rec" value="${esc(drv.rec)}" placeholder="Nome do recebedor" style="width:100%"></div>
       <div><label class="l" for="d-doc">Documento</label><input type="text" id="d-doc" value="${esc(drv.doc)}" placeholder="RG ou CPF (fictício)" style="width:100%"></div>
       <button class="canhoto ${drv.foto?'has':''}" data-act="foto" style="width:100%">${drv.foto?'Foto do canhoto anexada ✓':'Toque para anexar a foto do canhoto'}</button>
@@ -1113,6 +1115,7 @@ document.addEventListener('pointerup',()=>{if(drag){drag=null;redrawMap()}});
 document.addEventListener('wheel',e=>{const s=e.target.closest('#map');if(!s)return;e.preventDefault();const b=s.getBoundingClientRect(),f=e.deltaY<0?.8:1.25,nw=vb.w*f;if(nw<baseW/25||nw>baseW*1.6)return;const mx=vb.x+(e.clientX-b.left)/b.width*vb.w,my=vb.y+(e.clientY-b.top)/b.height*vb.h;vb={x:mx-(mx-vb.x)*f,y:my-(my-vb.y)*f,w:nw,h:vb.h*f};clearTimeout(wt);wt=setTimeout(redrawMap,20)},{passive:false});
 function setHl(rid){document.querySelectorAll('.mk.hl,.alert.hl').forEach(n=>n.classList.remove('hl'));if(rid){document.querySelector('.mk[data-mk="'+rid+'"]')?.classList.add('hl');document.querySelector('.alert[data-alert="A'+rid+'"]')?.classList.add('hl')}}
 document.addEventListener('mouseover',e=>{const a=e.target.closest('[data-alert]'),m=e.target.closest('[data-mk]');setHl(a?+a.dataset.alert.slice(1):(m?+m.dataset.mk:null))});
+setInterval(()=>{const e=document.getElementById('dtimer');if(e&&view==='motorista'&&drv.step==='deliver'){const x=byId(drv.rota).stops.find(z=>z.nf===drv.stop);if(x)e.innerHTML=dTimerHtml(x)}},1000);
 setInterval(()=>{const c=document.getElementById('clock');if(c)c.textContent=hhmm(demoMin());const fc=document.getElementById('feedchip');if(fc)fc.outerHTML=feedChip();checkDue();soundCheck();if(view==='torre'&&!tr&&!drag){const q=document.querySelector('.queue');const sc=q?q.scrollTop:0;render();const q2=document.querySelector('.queue');if(q2)q2.scrollTop=sc}},20000);
 render();
 </script>

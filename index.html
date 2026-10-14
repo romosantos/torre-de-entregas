@@ -76,7 +76,7 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .sm-t.v,.sm-t.a,.sm-t.g{border-left-color:var(--line)}.sm-t .mk2{margin-left:auto;font-size:11px}.sm-t .bar{height:6px}
 .queue.cases{max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:8px;padding:10px 12px}.queue.cases .alert{border:1px solid var(--line);border-left-width:4px;border-radius:8px;background:var(--panel2)}.queue.cases .alert.s2{border-left-color:var(--bad)}.queue.cases .alert.s1{border-left-color:var(--warn)}.queue.cases .qmed{grid-column:1/-1;border:1px solid var(--line);border-radius:8px}.alert.cp.sel{box-shadow:0 0 0 2px var(--fg) inset}.alert.cp .trunc{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.zh{display:flex;align-items:baseline;gap:8px;padding:12px 12px 0;margin:0;font:600 13px var(--f-disp,inherit);letter-spacing:.06em;text-transform:uppercase}.zh small{font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
 .alert.cp{min-width:0;overflow:hidden;grid-template-columns:minmax(0,1fr)}.alert.cp>*{min-width:0}.queue.cases{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))}
-.queue>.alert,.queue>.qmed{flex-shrink:0}.zbtn{border:0;background:none;padding:0;width:auto;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}.zbtn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}.zc{display:inline-block;width:1em}.zh{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.queue>.alert,.queue>.qmed{flex-shrink:0}.queue.cases{min-height:0;align-content:start}.zbtn{border:0;background:none;padding:0;width:auto;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}.zbtn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}.zc{display:inline-block;width:1em}.zh{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -813,7 +813,7 @@ function desempenho(){
   ${qualidade()}`}
 /* ---- contingência ---- */
 function contingencia(){
-  const at=R.filter(ativa).sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente).slice(0,40),ab=ALERTS.filter(a=>a.estado==='Novo').sort((a,b)=>b.sev-a.sev||a.criado-b.criado);
+  const at=RS().filter(ativa).sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente).slice(0,40),ab=ALERTS.filter(a=>a.estado==='Novo'&&mineA(a)).sort((a,b)=>b.sev-a.sev||a.criado-b.criado);
   const pend=CONT.notas.filter(n=>!n.ok);
   return `<div class="row"><h1>Contingência</h1><span class="sp"></span>${CONT.on?'<button class="btn" data-act="contoff">Encerrar contingência</button>':'<button class="btn pri" data-act="conton">Ativar contingência (demo)</button>'}<button class="btn" data-act="print">Imprimir listas</button></div>
   <div class="note noprint">${CONT.on?`<b style="color:var(--fg)">Contingência ativa desde ${hhmm(CONT.since)}.</b> Trabalhe pelas listas e anote o que fizer. Quando o sistema voltar, lance as anotações.`:'Use quando a plataforma ou o feed de posições ficar fora do ar. O procedimento abaixo é uma proposta e precisa ser confirmado com a operação.'}</div>
@@ -1004,11 +1004,14 @@ let selLib=(LIBR.find(l=>l.stops.some(s=>s.falha))||LIBR[0]).id;
 const lBlk=l=>l.stops.filter(s=>s.falha&&!LIB[l.id].rem.includes(s.nf));
 const lCan=l=>LREC.every(([k])=>LIB[l.id].chk[k])&&(!lBlk(l).length||LIB[l.id].exc);
 function liberacao(){
-  const tot=LIBR.reduce((a,l)=>a+l.stops.filter(s=>s.falha).length,0),lib=LIBR.filter(l=>LIB[l.id].ok).length,l=LIBR.find(x=>x.id===selLib),S=LIB[l.id],blk=lBlk(l);
+  const LS=LIBR.filter(x=>mineR(x.r));
+  if(!LS.length)return `<h1>Liberação de rotas</h1><div class="note" style="margin:0">Nenhuma rota planejada para as suas filiais neste dia.</div>`;
+  if(!LS.some(x=>x.id===selLib))selLib=(LS.find(x=>x.stops.some(s=>s.falha))||LS[0]).id;
+  const tot=LS.reduce((a,l)=>a+l.stops.filter(s=>s.falha).length,0),lib=LS.filter(l=>LIB[l.id].ok).length,l=LS.find(x=>x.id===selLib),S=LIB[l.id],blk=lBlk(l);
   return `<h1>Liberação de rotas</h1><div class="note" style="margin:0">Simulação: as NFs do dia 08/10 são usadas como se fossem a carga do dia seguinte. A validação barra, antes da saída, as falhas que hoje só aparecem depois da tentativa.</div>
-  <div class="kpis"><a class="kpi" href="#liberacao" data-go="lib:todas" title="Ver a lista"><b>${LIBR.length}</b><span>Rotas a liberar</span></a><a class="kpi k-ok" href="#liberacao" data-go="lib:ok" title="Ver a lista"><b>${lib}</b><span>Liberadas</span></a><a class="kpi k-bad" href="#liberacao" data-go="lib:blk" title="Ver a lista"><b>${tot}</b><span>NFs com bloqueio</span></a><a class="kpi k-warn" href="#liberacao" data-go="lib:res" title="Ver a lista"><b>${tot-LIBR.reduce((a,x)=>a+lBlk(x).length,0)}</b><span>Resolvidas antes da saída</span></a></div>
+  <div class="kpis"><a class="kpi" href="#liberacao" data-go="lib:todas" title="Ver a lista"><b>${LS.length}</b><span>Rotas a liberar</span></a><a class="kpi k-ok" href="#liberacao" data-go="lib:ok" title="Ver a lista"><b>${lib}</b><span>Liberadas</span></a><a class="kpi k-bad" href="#liberacao" data-go="lib:blk" title="Ver a lista"><b>${tot}</b><span>NFs com bloqueio</span></a><a class="kpi k-warn" href="#liberacao" data-go="lib:res" title="Ver a lista"><b>${tot-LS.reduce((a,x)=>a+lBlk(x).length,0)}</b><span>Resolvidas antes da saída</span></a></div>
   <div class="libgrid" id="p-lib"><section class="panel"><h2>Rotas planejadas</h2><div class="tw"><table><thead><tr><th>Rota</th><th>Motorista</th><th class="n">NFs</th><th>Situação</th></tr></thead><tbody>
-  ${LIBR.map(x=>{const b=lBlk(x).length,o=LIB[x.id];return `<tr class="click ${x.id===selLib?'sel':''}" data-act="lsel" data-id="${x.id}"><td><b>${lab(x.r)}</b></td><td>${esc(x.r.mot)}</td><td class="n">${x.stops.length}</td><td>${o.ok?'<span class="st Entregue">Liberada</span>':(b?`<span class="sev s2">${b} bloq.</span>`:'<span class="sev s0">Pronta</span>')}</td></tr>`}).join('')}</tbody></table></div></section>
+  ${LS.map(x=>{const b=lBlk(x).length,o=LIB[x.id];return `<tr class="click ${x.id===selLib?'sel':''}" data-act="lsel" data-id="${x.id}"><td><b>${lab(x.r)}</b></td><td>${esc(x.r.mot)}</td><td class="n">${x.stops.length}</td><td>${o.ok?'<span class="st Entregue">Liberada</span>':(b?`<span class="sev s2">${b} bloq.</span>`:'<span class="sev s0">Pronta</span>')}</td></tr>`}).join('')}</tbody></table></div></section>
   <section class="panel"><h2>Rota ${lab(l.r)} <small>${esc(l.r.mot)} · ${esc(l.r.placa)}</small></h2><div class="pad" style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px">
   <div><label class="l">Checklist de saída (obrigatório)</label><div class="choices">${LREC.map(([k,t])=>`<button type="button" data-act="lchk" data-id="${l.id}" data-k="${k}" class="${S.chk[k]?'on':''}">${S.chk[k]?'✓ ':''}${t}</button>`).join('')}</div></div>
   <div><label class="l">Validação por NF</label><div class="tw"><table class="cmp"><thead><tr><th>NF</th><th>Cliente</th>${CHK.map(c=>`<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>
@@ -1155,7 +1158,7 @@ function goKpi(t){
   if(k==='cli'){cliOnly=v!=='todos';cliRec=v==='rec';go('clientes')}
   else if(k==='sup'){if(v==='esc'){go('supervisor');sc('p-esc')}else if(v==='exc'){go('supervisor');sc('p-exc')}else{if(v==='sem')qf='sem';else qf='todos';go('torre')}}
   else if(k==='turno'){if(v==='comp'){go('turno');sc('p-comp')}else{qf='todos';go('torre')}}
-  else if(k==='lib'){const L=x=>LIB[x.id],pick=v==='ok'?LIBR.find(x=>L(x).ok):v==='blk'?LIBR.find(x=>lBlk(x).length):v==='res'?LIBR.find(x=>L(x).rem.length||L(x).exc):null;
+  else if(k==='lib'){const L=x=>LIB[x.id],LS=LIBR.filter(x=>mineR(x.r)),pick=v==='ok'?LS.find(x=>L(x).ok):v==='blk'?LS.find(x=>lBlk(x).length):v==='res'?LS.find(x=>L(x).rem.length||L(x).exc):null;
     if(pick)selLib=pick.id;else if(v!=='todas')toast(v==='ok'?'Nenhuma rota liberada ainda':v==='res'?'Nada resolvido antes da saída ainda':'Nenhuma NF com bloqueio');go('liberacao');if(v==='todas')sc('p-lib')}
   else if(k==='perf'){if(v==='torre'){qf='todos';go('torre')}else{go('desempenho');sc(v)}}
   else if(k==='aud'){audF.tipo=v;audF.q='';go('auditoria')}

@@ -359,8 +359,8 @@ const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor'&&role!=='admin'&&role!=='motorista')role='Analista A'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
-let qf='todos';
-const qfOk=a=>(!uf||byId(a.rota).unid===uf)&&(qf==='todos'||(qf==='meus'&&a.dono===actor())||(qf==='sem'&&!a.dono));
+const isSup=()=>role==='supervisor'||role==='admin';let qf=isSup()?'todos':'meus';
+const qfOk=a=>(!uf||byId(a.rota).unid===uf)&&(((qf==='todos'&&!isSup())?'meus':qf)==='todos'||(((qf==='todos'&&!isSup())?'meus':qf)==='meus'&&a.dono===actor())||(qf==='sem'&&!a.dono));
 const CONT={on:false,since:0,notas:[]};
 let MUTE=false;try{MUTE=localStorage.getItem('torre_mute')==='1'}catch(e){}
 let AC=null,SND=0,soundInit=false;const SEEN={a:new Set(),r:new Set(),feed:false};
@@ -382,7 +382,7 @@ function kpis(){const s=stats(rows);const k=(h,cls,v,l,t)=>`<a class="kpi ${cls}
   ${k('nfs','k-info',s.Pendente,`Pendentes · ${fmt$(s.valPend)}`,'Pendente')}
   ${k('nfs','k-warn',s.Reentrega,'Reentregas','Reentrega')}
   ${k('nfs','k-bad',s.Devolvida,'Devoluções','Devolvida')}
-  ${k('torre','',ALERTS.filter(a=>a.estado==='Novo').length,'Alertas abertos','ALERTAS')}</div>`}
+  ${k('torre','',ALERTS.filter(a=>a.estado==='Novo'&&(isSup()||a.dono===actor())).length,isSup()?'Alertas abertos':'Meus alertas abertos','ALERTAS')}</div>`}
 function feedChip(){return FEED.down?`<span class="chip bad" id="feedchip">⚠ Feed sem dados desde ${hhmm(FEED.since)}</span>`:`<span class="chip ok" id="feedchip">● Dados ao vivo · ${hhmm(demoMin())}</span>`}
 function freshChip(r){const st=isStale(r);return `<span class="chip ${st?'bad':'ok'}">${st?'⚠ Sem dados':'● Dado'} ${agoTxt(r)}</span>`}
 function feedBanner(){
@@ -490,7 +490,7 @@ function smTile(r,k,withSym){const p=r.stops.filter(x=>x.st==='Pendente').length
   return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span class="mk2" style="color:${SEMS[k][2]}" aria-hidden="true">${withSym||k==='c'?sy:''}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}
 let qDone=false,qTrat=false;
 function painel(open,done){
-  const withAl=new Set(ALERTS.filter(a=>a.estado==='Novo').map(a=>a.rota)),vis=R.filter(rMatch);
+  const withAl=new Set(ALERTS.filter(a=>a.estado==='Novo').map(a=>a.rota)),vis=R.filter(rMatch).filter(r=>isSup()||donoDe(r.unid)===actor());
   const and=vis.filter(r=>ativa(r)&&!withAl.has(r.id)).sort((a,b)=>b.stops.filter(x=>x.st==='Pendente').length-a.stops.filter(x=>x.st==='Pendente').length||a.id-b.id);
   const conc=vis.filter(r=>!ativa(r)&&!withAl.has(r.id));
   return `<h3 class="zh">Precisam de ação · ${open.length} <small>recontato vencido e gravidade alta primeiro, depois o mais atrasado no prazo</small></h3><div class="queue cases">${queueList(open)}</div>
@@ -505,12 +505,12 @@ function mapFilters(){
 function ufBar(one){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
   return `<div class="row${one?' chips1':''}" style="flex-wrap:wrap;gap:6px">${b('','Todas as unidades')}${UNID.map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
 function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a=>a.dono===actor()).length,sd=all.filter(a=>!a.dono).length;
-  const b=(v,l)=>`<button class="btn sm ${qf===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
-  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
+  const b=(v,l)=>`<button class="btn sm ${((qf==='todos'&&!isSup())?'meus':qf)===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
+  return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${isSup()?b('todos','Todos '+all.length):''}${b('meus','Meus '+m)}${isSup()||sd?b('sem','Sem dono '+sd):''}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
 function alertCard(a){if(a.estado==='Novo')return alertCompact(a);return alertFull(a)}
 function alertCompact(a){const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0,rd=a.recontato&&a.recontato<=demoMin();
-  return `<div class="alert cp s${a.sev} ${rd?'recdue':''} ${selAlert===a.id?'sel':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span><h3 title="${esc(a.itens[0])}">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
-  <div class="trunc">${esc(a.itens[0])}</div><div class="row2"><span class="sub">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))} · ${a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>'}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
+  return `<div class="alert cp s${a.sev} ${rd?'recdue':''} ${selAlert===a.id?'sel':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}" title="Gravidade ${a.sev===2?'alta':'média'}">${a.sev===2?'▲':'◆'}</span><h3 title="${esc(a.itens[0])}">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
+  <div class="trunc"><b style="color:var(--fg)">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</b> · ${esc(a.itens[0])}</div><div class="row2"><span class="sub">${isSup()?(a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>')+' · '+esc(r.unid):(a.dono?esc(r.unid):'<b style="color:var(--warn)">sem dono</b> · '+esc(r.unid))}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
 function alertFull(a){
   const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0&&a.estado==='Novo';
   const sevL=a.sev===2?'Alta':'Média';

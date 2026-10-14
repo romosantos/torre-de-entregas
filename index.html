@@ -760,13 +760,13 @@ let nfFilt={st:'Pendente',q:''};
 function nfs(){
   const q=(nfFilt.q||'').toLowerCase();
   const alertOf=rid=>ALERTS.find(a=>a.rota===rid&&a.estado==='Novo');
-  let l=rows.filter(x=>!nfFilt.st||x.st===nfFilt.st);
+  let l=rowsS().filter(x=>!nfFilt.st||x.st===nfFilt.st);
   if(q)l=l.filter(x=>(x.cli+' '+x.nf+' '+(byId(x.rota)?.mot||'')).toLowerCase().includes(q));
   l=l.map(x=>({x,a:alertOf(x.rota)})).sort((p,r)=>((r.a?r.a.sev:-1)-(p.a?p.a.sev:-1))||r.x.valor-p.x.valor);
   const tot=l.length,val=l.reduce((a,b)=>a+b.x.valor,0),shown=l.slice(0,150);
   const T=[['','Todas'],['Pendente','Pendentes'],['Entregue','Entregues'],['Reentrega','Reentregas'],['Devolvida','Devoluções']];
   return `<div class="row"><h1>NFs do dia</h1><span class="sp"></span><a class="btn" href="#torre">← Torre de controle</a></div>
-  <section class="panel"><h2>${nfFilt.st?T.find(t=>t[0]===nfFilt.st)[1]:'Todas as NFs'} <small>${tot} NFs · ${fmt$(val)}</small></h2>
+  <section class="panel"><h2>${nfFilt.st?T.find(t=>t[0]===nfFilt.st)[1]:'Todas as NFs'} <small>${tot} NFs · ${fmt$(val)}${isSup()?'':' · só as suas filiais'}</small></h2>
   <div class="filters">${T.map(([v,lb])=>`<button class="btn sm ${nfFilt.st===v?'pri':''}" data-act="nfst" data-v="${v}">${lb}</button>`).join('')}<input id="nf-q" type="search" placeholder="Buscar cliente, NF ou motorista" value="${esc(nfFilt.q||'')}" style="min-width:220px"></div>
   <div class="tw" style="max-height:620px;overflow:auto"><table><thead><tr><th>Rota</th><th>Motorista</th><th>Cliente</th><th>NF</th><th>Situação</th><th>Motivo</th><th class="n">Valor</th><th>Ação</th></tr></thead><tbody>
   ${shown.map(({x,a})=>{const r=byId(x.rota);return `<tr class="click" data-open="${x.rota}"><td><b>${lab(r)}</b></td><td>${esc(r.mot)}</td><td>${esc(x.cli)}</td><td style="font-family:var(--f-mono)">${x.nf}</td><td>${stChip(x.st)}</td><td>${esc(MOT[x.motivo]||'—')}</td><td class="n">${fmt$(x.valor)}</td><td>${a?`<button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>`:`<button class="btn sm" data-act="contact" data-id="${x.rota}">Registrar contato</button>`}</td></tr>`}).join('')||'<tr><td colspan="8" class="sub">Nenhuma NF com esse filtro.</td></tr>'}</tbody></table></div>

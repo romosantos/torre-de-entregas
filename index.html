@@ -74,6 +74,8 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .mapwrap.sem{grid-template-columns:minmax(0,1fr)}.mapwrap.sem .drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,100vw);max-height:none;min-height:0;z-index:40;background:var(--panel);box-shadow:-12px 0 32px rgba(0,0,0,.45)}
 .sm{grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;padding:10px}.sm-t{min-height:0;padding:6px 8px;gap:2px}.sm-t .n{font-size:15px}.sm-t .l{display:none}.sm-t .row2{display:flex;align-items:baseline;gap:4px}.sm-t .row2 .l2{font-size:11px;color:var(--mut)}
 .sm-t.v,.sm-t.a,.sm-t.g{border-left-color:var(--line)}.sm-t .mk2{margin-left:auto;font-size:11px}.sm-t .bar{height:6px}
+.queue.cases{max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:8px;padding:10px 12px}.queue.cases .alert{border:1px solid var(--line);border-left-width:4px;border-radius:8px;background:var(--panel2)}.queue.cases .alert.s2{border-left-color:var(--bad)}.queue.cases .alert.s1{border-left-color:var(--warn)}.queue.cases .qmed{grid-column:1/-1;border:1px solid var(--line);border-radius:8px}.alert.cp.sel{box-shadow:0 0 0 2px var(--fg) inset}.alert.cp .trunc{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.zh{display:flex;align-items:baseline;gap:8px;padding:12px 12px 0;margin:0;font:600 13px var(--f-disp,inherit);letter-spacing:.06em;text-transform:uppercase}.zh small{font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
+.alert.cp{min-width:0;overflow:hidden;grid-template-columns:minmax(0,1fr)}.alert.cp>*{min-width:0}.queue.cases{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -483,6 +485,17 @@ function semaforo(){
   return `<div class="sm-leg"><span>Um quadrado por rota, das que têm mais NFs pendentes para as que têm menos</span><span>Número = NFs pendentes · barra = entregues</span><span><b style="color:var(--bad)">▲</b> / <b style="color:var(--warn)">◆</b> = rota com caso na fila de alertas</span><span>✓ concluídas ${cnt('c')}</span></div>
   <div class="sm" role="list">${L.map(({r,k,p})=>{const [sy,lb]=SEMS[k],s2=stats(r.stops),A=ALERTS.find(a=>a.rota===r.id&&a.estado==='Novo');
     return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}${A?' · '+esc(A.kind):''}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span class="mk2" style="color:${SEMS[k][2]}" aria-hidden="true">${k==="v"||k==="a"||k==="c"?sy:""}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="l">${lb}</span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>`}
+function smTile(r,k,withSym){const p=r.stops.filter(x=>x.st==='Pendente').length,[sy,lb]=SEMS[k],s2=stats(r.stops);
+  return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span class="mk2" style="color:${SEMS[k][2]}" aria-hidden="true">${withSym||k==='c'?sy:''}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}
+let qDone=false,qTrat=false;
+function painel(open,done){
+  const withAl=new Set(ALERTS.filter(a=>a.estado==='Novo').map(a=>a.rota)),vis=R.filter(rMatch);
+  const and=vis.filter(r=>ativa(r)&&!withAl.has(r.id)).sort((a,b)=>b.stops.filter(x=>x.st==='Pendente').length-a.stops.filter(x=>x.st==='Pendente').length||a.id-b.id);
+  const conc=vis.filter(r=>!ativa(r)&&!withAl.has(r.id));
+  return `<h3 class="zh">Precisam de ação · ${open.length} <small>recontato vencido e gravidade alta primeiro, depois o mais atrasado no prazo</small></h3><div class="queue cases">${queueList(open)}</div>
+  <h3 class="zh">Em andamento · ${and.length} <small>sem alerta, das que têm mais NFs pendentes para as que têm menos</small></h3><div class="sm" role="list">${and.map(r=>smTile(r,'g')).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>
+  <h3 class="zh" style="padding-top:4px"><button class="qmed" data-act="qdone" aria-expanded="${qDone}" style="border:0;background:none;padding:0;width:auto">${qDone?'▾':'▸'} Concluídas · ${conc.length}</button>${done.length?` <button class="qmed" data-act="qtrat" aria-expanded="${qTrat}" style="border:0;background:none;padding:0;width:auto;margin-left:16px">${qTrat?'▾':'▸'} Tratados nesta sessão · ${done.length}</button>`:''}</h3>
+  ${qDone?`<div class="sm" role="list">${conc.map(r=>smTile(r,'c')).join('')}</div>`:''}${qTrat?`<div class="queue cases">${done.map(alertCard).join('')}</div>`:''}`}
 function mapFilters(){
   const c=(k,v,l)=>`<button class="fchip ${mf[k]===v?'on':''}" data-act="mf" data-k="${k}" data-v="${v}">${l}</button>`;
   return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}${vw==='sem'?'':`<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button>`}</div>`}
@@ -493,10 +506,10 @@ function ufBar(one){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data
 function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a=>a.dono===actor()).length,sd=all.filter(a=>!a.dono).length;
   const b=(v,l)=>`<button class="btn sm ${qf===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
   return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${b('todos','Todos '+all.length)}${b('meus','Meus '+m)}${b('sem','Sem dono '+sd)}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
-function alertCard(a){if(a.estado==='Novo'&&selAlert!==a.id)return alertCompact(a);return alertFull(a)}
+function alertCard(a){if(a.estado==='Novo')return alertCompact(a);return alertFull(a)}
 function alertCompact(a){const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0,rd=a.recontato&&a.recontato<=demoMin();
-  return `<div class="alert cp s${a.sev} ${rd?'recdue':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span><h3 title="${esc(a.itens[0])}">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
-  <div class="row2"><span class="sub">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))} · ${a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>'}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
+  return `<div class="alert cp s${a.sev} ${rd?'recdue':''} ${selAlert===a.id?'sel':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span><h3 title="${esc(a.itens[0])}">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
+  <div class="trunc">${esc(a.itens[0])}</div><div class="row2"><span class="sub">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))} · ${a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>'}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
 function alertFull(a){
   const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0&&a.estado==='Novo';
   const sevL=a.sev===2?'Alta':'Média';
@@ -521,12 +534,15 @@ function queueList(open){const now=demoMin(),hi=open.filter(a=>a.sev===2||(a.rec
 function torre(){
   const now0=demoMin(),open=ALERTS.filter(a=>a.estado==='Novo'&&qfOk(a)).sort((a,b)=>(+!!(b.recontato&&b.recontato<=now0))-(+!!(a.recontato&&a.recontato<=now0))||b.sev-a.sev||a.criado-b.criado);
   const done=ALERTS.filter(a=>a.estado!=='Novo');
+  const tabs=`<span class="tabs2"><button class="fchip ${vw==='sem'?'on':''}" data-act="vw" data-v="sem">Painel</button><button class="fchip ${vw==='mapa'?'on':''}" data-act="vw" data-v="mapa">Mapa</button></span>`;
+  if(vw==='sem')return `${recBanner()}${kpis()}<section class="panel" id="painel"><h2>Painel de rotas ${tabs} <small>${R.length} rotas · ${open.length} com caso aberto</small></h2>${queueBar()}
+  <div class="mapwrap sem"><div class="mapbox" id="mapbox" style="height:auto;min-height:0;overflow:visible">${painel(open,done)}</div><aside class="drawer" id="drawer">${drawer()}</aside></div></section>`;
   return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>gravidade e espera</small></h2>
   ${queueBar()}<div class="queue">${queueList(open)}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
-  <section class="panel"><h2>${vw==='sem'?'Andamento das rotas':'Mapa das rotas'} <span class="tabs2"><button class="fchip ${vw==='sem'?'on':''}" data-act="vw" data-v="sem">Andamento</button><button class="fchip ${vw==='mapa'?'on':''}" data-act="vw" data-v="mapa">Mapa</button></span> <small>${R.length} rotas · um quadrado por rota</small></h2>${mapFilters()}
-  <div class="mapwrap ${vw==='sem'?'sem':''}"><div class="mapbox" id="mapbox" ${vw==='sem'?'style="height:auto;min-height:0;overflow:visible"':''}>${vw==='sem'?semaforo():mapSVG()}
-  ${vw==='sem'?'':`<div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>`}
-  ${vw==='sem'?'':`<div class="legend"><span style="color:var(--bad)">■ Alerta alto</span><span style="color:var(--warn)">● Alerta médio</span><span style="color:var(--info)">● Em andamento</span><span style="color:var(--ok)">● Concluída</span><span class="sub">Número = NFs pendentes · mapa esquemático</span></div>`}</div>
+  <section class="panel"><h2>Mapa das rotas ${tabs} <small>${R.length} rotas · um marcador por rota</small></h2>${mapFilters()}
+  <div class="mapwrap"><div class="mapbox" id="mapbox">${mapSVG()}
+  <div class="zoom"><button class="btn" data-act="zin" aria-label="Aproximar">+</button><button class="btn" data-act="zout" aria-label="Afastar">−</button><button class="btn" data-act="zreset" aria-label="Ver todas as rotas">⌂</button></div>
+  <div class="legend"><span style="color:var(--bad)">■ Alerta alto</span><span style="color:var(--warn)">● Alerta médio</span><span style="color:var(--info)">● Em andamento</span><span style="color:var(--ok)">● Concluída</span><span class="sub">Número = NFs pendentes · mapa esquemático</span></div></div>
   <aside class="drawer" id="drawer">${drawer()}</aside></div></section></div>`}
 
 /* ---- encerramento da viagem ---- */
@@ -1074,6 +1090,8 @@ document.addEventListener('click',e=>{
   else if(a==='rnoff'){rnOff()}
   else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
   else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
+  else if(a==='qdone'){qDone=!qDone;render()}
+  else if(a==='qtrat'){qTrat=!qTrat;render()}
   else if(a==='qmed'){qMed=!qMed;render()}
   else if(a==='traf'){TRAF.modo=TRAF.modo==='Intenso'?'Normal':'Intenso';buildAlerts();logAud('Integração','Trânsito simulado: '+TRAF.modo+' (demo)',null);render();toast('Trânsito '+TRAF.modo.toLowerCase()+' (simulado)')}
   else if(a==='sigback'){delete STALE[id];logEv(id,'Sinal do motorista restabelecido (simulado)','Sistema');buildAlerts();render();toast('Sinal restabelecido')}
@@ -1140,7 +1158,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&selRoute&&view==='torre'&&vw==='sem'&&!tr){selRoute=null;selAlert=null;render();return}
   if(tr||view!=='torre')return;
   const l=openAlerts();if(!l.length)return;const i=l.findIndex(a=>a.id===selAlert),k=e.key.toLowerCase();
-  if(k==='j'||k==='k'){const n=l[k==='j'?Math.min(l.length-1,i+1):Math.max(0,i<0?0:i-1)];selectRoute(n.rota,n.id);setTimeout(()=>document.querySelector('.alert.sel')?.scrollIntoView({block:'nearest'}),30);e.preventDefault()}
+  if(k==='j'||k==='k'){const n=l[k==='j'?Math.min(l.length-1,i+1):Math.max(0,i<0?0:i-1)];if(vw==='sem'){selAlert=n.id;render()}else selectRoute(n.rota,n.id);setTimeout(()=>document.querySelector('.alert.sel')?.scrollIntoView({block:'nearest'}),30);e.preventDefault()}
   else if(k==='t'){const a=l[i>=0?i:0];openTreat(a.rota,a.id);e.preventDefault()}
 });
 /* pan e zoom do mapa */

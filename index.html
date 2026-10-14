@@ -503,7 +503,7 @@ function mapFilters(){
 
 /* ---- torre ---- */
 function ufBar(one){const b=(v,l)=>`<button class="fchip ${uf===v?'on':''}" data-act="uf" data-v="${v}">${l}</button>`,aus=Object.keys(AUS).filter(k=>AUS[k]);
-  return `<div class="row${one?' chips1':''}" style="flex-wrap:wrap;gap:6px">${b('','Todas as unidades')}${UNID.map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
+  return `<div class="row${one?' chips1':''}" style="flex-wrap:wrap;gap:6px">${b('',isSup()?'Todas as unidades':'Minhas unidades')}${UNID.filter(u=>isSup()||donoDe(u)===actor()).map(u=>b(u,u)).join('')}</div>${aus.length?`<div class="sub">Cobertura ativa: ${aus.map(k=>`${esc(k)} ausente, casos com ${esc(donoDe(COB[k].unid[0]||'')||COB[k].sub)}`).join(' · ')}</div>`:''}`}
 function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a=>a.dono===actor()).length,sd=all.filter(a=>!a.dono).length;
   const b=(v,l)=>`<button class="btn sm ${((qf==='todos'&&!isSup())?'meus':qf)===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
   return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${isSup()?b('todos','Todos '+all.length):''}${b('meus','Meus '+m)}${isSup()||sd?b('sem','Sem dono '+sd):''}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
@@ -582,8 +582,8 @@ const ddiff=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
 const tVenc=n=>n.st==='Ag. Informações'&&n.pv<HOJE;
 const tDono=n=>donoDe(n.f);
 let TF={tr:'',st:'',meus:false,venc:false},TT=null;
-const tScope=()=>TN.filter(n=>(!uf||n.f===uf)&&(!TF.meus||tDono(n)===actor()));
-const tCount=()=>TN.filter(tVenc).length;
+const tScope=()=>TN.filter(n=>(!uf||n.f===uf)&&((!isSup()||!TF.meus)?(isSup()||tDono(n)===actor()):tDono(n)===actor()));
+const tCount=()=>TN.filter(n=>tVenc(n)&&(isSup()||tDono(n)===actor())).length;
 function tStat(l){const o={n:l.length,ent:0,ag:0,venc:0,dev:0,ree:0,sin:0,fora:0,dentro:0,val:0};
   l.forEach(n=>{o.val+=n.v;if(n.st==='Entregue'){o.ent++;if(n.dr>n.pv)o.fora++;else o.dentro++}else if(n.st==='Ag. Informações'){o.ag++;if(tVenc(n))o.venc++}else if(n.st==='Devolução')o.dev++;else if(n.st==='Reentrega')o.ree++;else if(n.st==='Sinistro')o.sin++});
   o.otd=o.ent?Math.round(100*o.dentro/o.ent):null;return o}
@@ -597,7 +597,7 @@ function transportadoras(){
   return `<div class="row"><h1>Transportadoras</h1><span class="chip">Controle por NF · formato da planilha padrão</span><span class="sp"></span><button class="btn" data-act="texp">Exportar no formato da planilha</button></div>
   <div class="sub" style="margin-bottom:10px">Segundo modelo de operação: a carga vai com transportadora terceirizada, sem motorista nem posição no sistema. A Torre acompanha cada NF e cobra a informação de quem entrega. A frota própria continua em Rotas. Dados fictícios.</div>
   <div class="kpis">${k('', S.n,'NFs no período','clear','')}${k(S.venc?'k-bad':'k-info',S.ag+(S.venc?` · ${S.venc} vencidas`:''),'Aguardando informação','st','Ag. Informações')}${k(S.otd!=null&&S.otd<90?'k-warn':'k-ok',S.otd==null?'—':S.otd+'%','Entregas no prazo (OTD)','clear','')}${k(S.dev?'k-bad':'',S.dev,'Devoluções','st','Devolução')}${k(S.ree?'k-warn':'',S.ree,'Reentregas','st','Reentrega')}${k(S.sin?'k-bad':'',S.sin,'Sinistros','st','Sinistro')}</div>
-  <div class="pad noprint" style="padding:0 0 10px;display:grid;gap:6px">${ufBar()}<div class="row" style="flex-wrap:wrap;gap:6px">${fc('meus','true','Só as minhas')}${car.map(c=>fc('tr',c,c)).join('')}</div></div>
+  <div class="pad noprint" style="padding:0 0 10px;display:grid;gap:6px">${ufBar()}<div class="row" style="flex-wrap:wrap;gap:6px">${isSup()?fc('meus','true','Só as minhas'):''}${car.map(c=>fc('tr',c,c)).join('')}</div></div>
   <section class="panel"><h2>Fila: NFs sem informação da transportadora <small>${fila.length} com previsão vencida · responsável pela filial</small></h2>${fila.length?`<div class="tw"><table class="wrap"><thead><tr><th>NF</th><th>Cliente</th><th class="hm">Município</th><th>Transportadora</th><th class="hm">Filial</th><th>Previsão</th><th class="n">Atraso</th><th class="n hm">Valor</th><th class="hm">Responsável</th><th></th></tr></thead><tbody>
   ${fila.slice(0,40).map(n=>`<tr><td style="font-family:var(--f-mono)">${n.nf}</td><td>${esc(n.cl)}</td><td class="sub hm">${esc(n.mu)}</td><td>${esc(n.tr)}</td><td class="sub hm">${esc(n.f)}</td><td>${dfmt(n.pv)}</td><td class="n"><b>${ddiff(HOJE,n.pv)} d</b></td><td class="n hm">${fmt$(n.v)}</td><td class="sub hm">${esc(tDono(n))}</td><td><button class="btn sm pri" data-act="tupd" data-nf="${n.nf}">Atualizar</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="pad sub">Nenhuma NF vencida neste escopo.</div>'}</section>
   <section class="panel" style="margin-top:12px"><h2>Desempenho por transportadora <small>toque numa linha para filtrar</small></h2><div class="tw"><table class="wrap"><thead><tr><th>Transportadora</th><th class="n">NFs</th><th class="n">Entregues</th><th class="n">Aguardando</th><th class="n">Vencidas</th><th class="n">No prazo</th><th class="n">Devol.</th></tr></thead><tbody>

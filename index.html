@@ -91,6 +91,8 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .tw{background:linear-gradient(to right,var(--panel) 30%,transparent),linear-gradient(to right,transparent,var(--panel) 70%) 100% 0,radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.35),transparent),radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.35),transparent) 100% 0;background-repeat:no-repeat;background-size:36px 100%,36px 100%,14px 100%,14px 100%;background-attachment:local,local,scroll,scroll}
 .zbtn{text-align:left}.zh{justify-content:flex-start;text-align:left}
 .bar{height:10px}
+.navmore{display:flex;gap:4px;flex-wrap:wrap;width:100%;padding:4px 0 0}.navmore a{padding:8px 12px;border-radius:6px;color:var(--mut);text-decoration:none;font-weight:500;border:1px solid var(--line)}.navmore a.on{color:var(--fg);background:var(--panel);box-shadow:inset 0 -2px 0 var(--acc)}
+.pcols{columns:2 420px;column-gap:12px}.pcols>.panel{break-inside:avoid;margin:0 0 12px;display:block}
 label.l,.l{font-size:12px}.zh small{font-size:12px}
 @media(max-width:700px){
 .demotg{display:inline-flex}.demobtns{display:none}.demogrp.open .demobtns{display:flex;gap:8px;flex-wrap:wrap;width:100%}
@@ -404,11 +406,12 @@ function feedBanner(){
   if(FEED.down){const m=Math.round(demoMin()-FEED.since);return `<div class="recban" role="alert"><div class="it"><b>⚠ Feed de posições sem dados desde ${hhmm(FEED.since)}${m>0?` (há ${m} min)`:''}.</b><span class="sp"></span><span class="democtl"><span>DEMO</span><button class="btn sm" data-act="feedtog">Restabelecer feed (demo)</button></div><div>Posições e status na tela podem estar desatualizados. Não decida só por esta tela: confirme por telefone ou rádio e <a href="#contingencia">abra o plano de contingência</a>.</div></div>`}
   const st=R.filter(isStale);
   return st.length&&(view==='torre'||view==='rotas')?`<div class="recban info"><b style="color:var(--fg)">⚠ ${st.length} rota${st.length>1?'s':''} sem dado há mais de ${CFG.posAtraso} min:</b> ${st.map(r=>`<a href="#rota-${r.id}">${lab(r)} (${agoTxt(r)})</a>`).join(', ')}. Cada uma abre um alerta de perda de sinal.</div>`:''}
-let DEMO_OPEN=false;
+let DEMO_OPEN=false,MORE_OPEN=false;
 function header(){
-  const sup=role==='supervisor',adm=role==='admin',mot=role==='motorista',nav=mot?[['motorista','App do motorista']]:adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Frota própria'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia']];
+  const sup=role==='supervisor',adm=role==='admin',mot=role==='motorista',MORE=['desempenho','parametros','relatorio'];let more=[];let nav=mot?[['motorista','App do motorista']]:adm?[['integracao','Integração Roadnet'],['auditoria','Auditoria'],['parametros','Parâmetros']]:[...(sup?[['supervisor','Supervisão'],['desempenho','Desempenho']]:[]),['torre','Torre de controle'],['rotas','Frota própria'],['transportadoras',`Transportadoras${tCount()?' ('+tCount()+')':''}`],['ocorrencias','Ocorrências'],['clientes','Clientes'],...(sup?[['parametros','Parâmetros']]:[]),['liberacao','Liberação'],['contingencia','Contingência'],['turno','Passagem de turno'],['relatorio','Relatório do dia']];
+  if(sup){more=nav.filter(([k])=>MORE.includes(k));nav=nav.filter(([k])=>!MORE.includes(k));const on=more.some(([k])=>k===view);nav.push(['__more',`Mais ${MORE_OPEN||on?'▴':'▾'}`,on])}
   return `<header>${mot?`<a class="backlink sair" href="#torre" data-act="motexit">← Sair do app (demo)</a>`:`<a class="backlink" href="#torre">← Painel de controle</a>`}<div class="brand"><i></i>Torre de Entregas</div>
-  <nav>${nav.map(([k,l])=>`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>
+  <nav>${nav.map(([k,l,on])=>k==='__more'?`<a href="#" data-act="moretog" aria-expanded="${MORE_OPEN}" class="${on?'on':''}">${l}</a>`:`<a href="#${k}" class="${(view===k||(k==='rotas'&&view==='rota'))?'on':''}">${l}</a>`).join('')}</nav>${sup&&MORE_OPEN?`<div class="navmore">${more.map(([k,l])=>`<a href="#${k}" class="${view===k?'on':''}">${l}</a>`).join('')}</div>`:''}
   <div class="meta"><span class="chip demo">Dados fictícios</span><span class="hm">Operação de 08/10/2026</span><span id="clock">${hhmm(demoMin())}</span>${feedChip()}<label class="sub" for="role-sel" style="margin-left:6px">Perfil</label><select id="role-sel" aria-label="Perfil de acesso">${Object.keys(COB).map(k=>`<option value="${k}" ${role===k?'selected':''}>${k}${AUS[k]?' (férias)':''}</option>`).join('')}<option value="supervisor" ${sup?'selected':''}>Supervisor</option><option value="admin" ${adm?'selected':''}>Administrador da ferramenta</option><option value="motorista" ${mot?'selected':''}>Motorista (app)</option></select><span class="demogrp ${DEMO_OPEN?'open':''}"><button class="btn sm demotg" data-act="demotog" aria-expanded="${DEMO_OPEN}">Demo ${DEMO_OPEN?'▴':'▾'}</button><span class="demobtns"><button class="btn sm" data-act="feedtog" title="Apenas para a demonstração: simula a queda do feed de posições">${FEED.down?'Restabelecer feed':'Queda do feed'}</button><button class="btn sm" data-act="traf" title="Apenas para a demonstração: simula trânsito intenso nas previsões">${TRAF.modo==='Intenso'?'Trânsito: intenso':'Trânsito: normal'}</button><button class="btn sm" data-act="adv" title="Apenas para a demonstração: avança o relógio">+10 min</button></span></span></span></div></header>`}
 /* ---- mapa ---- */
 const PX=lon=>(lon+47.45)*900, PY=lat=>(-22.62-lat)*900;
@@ -794,7 +797,7 @@ function ovrPanel(){
 function parametros(){
   return `<div class="row"><h1>Parâmetros</h1><span class="sp"></span><button class="btn" data-act="cfgreset">Restaurar padrões</button></div>
   <div class="sub" style="margin-bottom:10px">Ajuste as regras da operação. Cada valor vale na hora e fica guardado neste navegador. Na versão real, os parâmetros poderão variar por cliente e por rota.</div>
-  <div class="two">${PAR.map(([t,fs])=>`<section class="panel"><h2>${t}</h2><div class="pad" style="display:grid;gap:12px">${fs.map(([k,l,u,mn,mx,d])=>`<div><label class="l" for="cfg-${k}">${l}</label><div class="row"><input id="cfg-${k}" type="number" min="${mn}" max="${mx}" value="${CFG[k]}" style="width:90px"><span class="sub">${u}</span><span class="sub" style="margin-left:6px">padrão ${CFG0[k]}</span></div>${d?`<div class="sub" style="margin-top:4px">${d}</div>`:''}</div>`).join('')}</div></section>`).join('')}</div>${ovrPanel()}${histPar()}`}
+  <div class="pcols">${PAR.map(([t,fs])=>`<section class="panel"><h2>${t}</h2><div class="pad" style="display:grid;gap:12px">${fs.map(([k,l,u,mn,mx,d])=>`<div><label class="l" for="cfg-${k}">${l}</label><div class="row"><input id="cfg-${k}" type="number" min="${mn}" max="${mx}" value="${CFG[k]}" style="width:90px"><span class="sub">${u}</span><span class="sub" style="margin-left:6px">padrão ${CFG0[k]}</span></div>${d?`<div class="sub" style="margin-top:4px">${d}</div>`:''}</div>`).join('')}</div></section>`).join('')}</div>${ovrPanel()}${histPar()}`}
 /* ---- auditoria ---- */
 let audF={tipo:'',q:''};
 function auditoria(){
@@ -891,7 +894,7 @@ function motorista(){
   let body='';
   if(drv.step==='list'){
     body=`<div class="ph-h"><b>Rota ${lab(r)}</b><span class="sub">${esc(r.mot)} · ${esc(r.placa)}</span>${barOf(s)}<span class="sub">${s.Entregue} de ${s.n} entregues</span></div>
-    <div class="ph-b">${r.stops.map((x,i)=>`<button class="stop" data-stop="${x.nf}"><span class="row"><b>${i+1}. ${esc(x.cli)}</b></span><span class="sub">${esc(x.cidade)} · NF ${x.nf} · ${fmt$(x.valor)}</span><span class="row">${stChip(x.st)}<span class="sub">janela ${JAN[x.janela]||''} · chegada prev. ${hhmm(cronAt(r,i).ch)}</span></span></button>`).join('')}</div>`;
+    <div class="ph-b">${(()=>{const i=r.stops.findIndex(z=>z.st==='Pendente');return i<0?'':`<button class="big pri" data-stop="${r.stops[i].nf}">Próxima parada: ${i+1}. ${esc(r.stops[i].cli)}</button>`})()}${r.stops.map((x,i)=>`<button class="stop" data-stop="${x.nf}"><span class="row"><b>${i+1}. ${esc(x.cli)}</b></span><span class="sub">${esc(x.cidade)} · NF ${x.nf} · ${fmt$(x.valor)}</span><span class="row">${stChip(x.st)}<span class="sub">janela ${JAN[x.janela]||''} · chegada prev. ${hhmm(cronAt(r,i).ch)}</span></span></button>`).join('')}</div>`;
   }else{
     const x=r.stops.find(z=>z.nf===drv.stop);
     const head=`<div class="ph-h"><button class="btn sm" data-act="back" style="justify-self:start">← Paradas</button><b>${esc(x.cli)}</b><span class="sub">${esc(x.cidade)} · NF ${x.nf} · ${fmt$(x.valor)} · ${fmtN(x.peso)} kg</span></div>`;
@@ -1123,6 +1126,7 @@ document.addEventListener('click',e=>{
   else if(a==='rnoff'){rnOff()}
   else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
   else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
+  else if(a==='moretog'){e.preventDefault();MORE_OPEN=!MORE_OPEN;render()}
   else if(a==='demotog'){DEMO_OPEN=!DEMO_OPEN;render()}
   else if(a==='qz'){const k=t.dataset.k;if(k==='acao')qAcao=!qAcao;else if(k==='and')qAnd=!qAnd;else if(k==='done')qDone=!qDone;else if(k==='trat')qTrat=!qTrat;else if(k==='med')qMed=!(qMed||(selAlert&&ALERTS.some(x=>x.id===selAlert&&x.sev!==2&&!(x.recontato&&x.recontato<=demoMin()))));render()}
   else if(a==='qdone'){qDone=!qDone;render()}

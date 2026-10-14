@@ -76,7 +76,7 @@ a.kpi:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .sm-t.v,.sm-t.a,.sm-t.g{border-left-color:var(--line)}.sm-t .mk2{margin-left:auto;font-size:11px}.sm-t .bar{height:6px}
 .queue.cases{max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:8px;padding:10px 12px}.queue.cases .alert{border:1px solid var(--line);border-left-width:4px;border-radius:8px;background:var(--panel2)}.queue.cases .alert.s2{border-left-color:var(--bad)}.queue.cases .alert.s1{border-left-color:var(--warn)}.queue.cases .qmed{grid-column:1/-1;border:1px solid var(--line);border-radius:8px}.alert.cp.sel{box-shadow:0 0 0 2px var(--fg) inset}.alert.cp .trunc{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.zh{display:flex;align-items:baseline;gap:8px;padding:12px 12px 0;margin:0;font:600 13px var(--f-disp,inherit);letter-spacing:.06em;text-transform:uppercase}.zh small{font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
 .alert.cp{min-width:0;overflow:hidden;grid-template-columns:minmax(0,1fr)}.alert.cp>*{min-width:0}.queue.cases{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))}
-.queue>.alert,.queue>.qmed{flex-shrink:0}
+.queue>.alert,.queue>.qmed{flex-shrink:0}.zbtn{border:0;background:none;padding:0;width:auto;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}.zbtn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}.zc{display:inline-block;width:1em}.zh{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
 .alert.recdue{box-shadow:inset 0 0 0 1px var(--bad)}
 .recstrip{font:600 12px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.04em}
 .sla{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
@@ -359,7 +359,8 @@ const slaOf=(sev,rid)=>sev===2?cfgOf(rid,'slaAlta'):cfgOf(rid,'slaMedia');
 let role='Analista A';try{role=localStorage.getItem('torre_role')||'Analista A';if(!COB[role]&&role!=='supervisor'&&role!=='admin'&&role!=='motorista')role='Analista A'}catch(e){}
 logAud('Sistema','Dados do dia 08/10/2026 carregados (fictícios)',null,'Sistema');
 logAud('Parâmetro','Parâmetros operacionais carregados (padrão ou salvos neste navegador)',null,'Sistema');
-const isSup=()=>role==='supervisor'||role==='admin';let qf=isSup()?'todos':'meus';
+const isSup=()=>role==='supervisor'||role==='admin';
+const mineR=r=>isSup()||donoDe(r.unid)===actor(),RS=()=>R.filter(mineR),rowsS=()=>isSup()?rows:rows.filter(x=>mineR(byId(x.rota))),mineA=a=>isSup()||a.dono===actor();let qf=isSup()?'todos':'meus';
 const qfOk=a=>(!uf||byId(a.rota).unid===uf)&&(((qf==='todos'&&!isSup())?'meus':qf)==='todos'||(((qf==='todos'&&!isSup())?'meus':qf)==='meus'&&a.dono===actor())||(qf==='sem'&&!a.dono));
 const CONT={on:false,since:0,notas:[]};
 let MUTE=false;try{MUTE=localStorage.getItem('torre_mute')==='1'}catch(e){}
@@ -376,8 +377,8 @@ const toast=m=>{const t=document.createElement('div');t.className='toast';t.text
 const stChip=s=>`<span class="st ${s}">${s}</span>`;
 function barOf(st){const t=st.n||1;return `<div class="bar" title="Entregue ${st.Entregue} · Pendente ${st.Pendente} · Reentrega ${st.Reentrega} · Devolvida ${st.Devolvida}">
   <i style="width:${st.Entregue/t*100}%;background:var(--ok)"></i><i style="width:${st.Pendente/t*100}%;background:var(--info);opacity:.55"></i><i style="width:${st.Reentrega/t*100}%;background:var(--warn)"></i><i style="width:${st.Devolvida/t*100}%;background:var(--bad)"></i></div>`}
-function kpis(){const s=stats(rows);const k=(h,cls,v,l,t)=>`<a class="kpi ${cls}" href="#${h}" data-kpi="${t}" title="Ver os itens">${'<b>'+v+'</b>'}<span>${l}</span></a>`;return `<div class="kpis">
-  ${k('nfs','',s.n,`NFs do dia · ${R.length} rotas`,'ALL')}
+function kpis(){const s=stats(rowsS());const k=(h,cls,v,l,t)=>`<a class="kpi ${cls}" href="#${h}" data-kpi="${t}" title="Ver os itens">${'<b>'+v+'</b>'}<span>${l}</span></a>`;return `<div class="kpis">
+  ${k('nfs','',s.n,`NFs do dia · ${RS().length} rotas`,'ALL')}
   ${k('nfs','k-ok',pct(s.Entregue,s.n)+'%',`Entregues (${s.Entregue})`,'Entregue')}
   ${k('nfs','k-info',s.Pendente,`Pendentes · ${fmt$(s.valPend)}`,'Pendente')}
   ${k('nfs','k-warn',s.Reentrega,'Reentregas','Reentrega')}
@@ -489,14 +490,19 @@ function semaforo(){
 function smTile(r,k,withSym){const p=r.stops.filter(x=>x.st==='Pendente').length,[sy,lb]=SEMS[k],s2=stats(r.stops);
   return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span class="mk2" style="color:${SEMS[k][2]}" aria-hidden="true">${withSym||k==='c'?sy:''}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}
 let qDone=false,qTrat=false;
+let qAcao=true,qAnd=true;
+function zt(k,open,label,n,hint){return `<h3 class="zh"><button class="zbtn" data-act="qz" data-k="${k}" aria-expanded="${open}"><span class="zc">${open?'▾':'▸'}</span> ${label} · ${n}</button>${hint?` <small>${hint}</small>`:''}</h3>`}
 function painel(open,done){
   const withAl=new Set(ALERTS.filter(a=>a.estado==='Novo').map(a=>a.rota)),vis=R.filter(rMatch).filter(r=>isSup()||donoDe(r.unid)===actor());
   const and=vis.filter(r=>ativa(r)&&!withAl.has(r.id)).sort((a,b)=>b.stops.filter(x=>x.st==='Pendente').length-a.stops.filter(x=>x.st==='Pendente').length||a.id-b.id);
   const conc=vis.filter(r=>!ativa(r)&&!withAl.has(r.id));
-  return `<h3 class="zh">Precisam de ação · ${open.length} <small>recontato vencido e gravidade alta primeiro, depois o mais atrasado no prazo</small></h3><div class="queue cases">${queueList(open)}</div>
-  <h3 class="zh">Em andamento · ${and.length} <small>sem alerta, das que têm mais NFs pendentes para as que têm menos</small></h3><div class="sm" role="list">${and.map(r=>smTile(r,'g')).join('')||'<div class="pad sub">Nenhuma rota neste filtro.</div>'}</div>
-  <h3 class="zh" style="padding-top:4px"><button class="qmed" data-act="qdone" aria-expanded="${qDone}" style="border:0;background:none;padding:0;width:auto">${qDone?'▾':'▸'} Concluídas · ${conc.length}</button>${done.length?` <button class="qmed" data-act="qtrat" aria-expanded="${qTrat}" style="border:0;background:none;padding:0;width:auto;margin-left:16px">${qTrat?'▾':'▸'} Tratados nesta sessão · ${done.length}</button>`:''}</h3>
-  ${qDone?`<div class="sm" role="list">${conc.map(r=>smTile(r,'c')).join('')}</div>`:''}${qTrat?`<div class="queue cases">${done.map(alertCard).join('')}</div>`:''}`}
+  const now=demoMin(),hi=open.filter(a=>a.sev===2||(a.recontato&&a.recontato<=now)),med=open.filter(a=>!hi.includes(a)),medOn=qMed||(selAlert&&med.some(a=>a.id===selAlert));
+  const emp=t=>`<div class="pad sub">${t}</div>`;
+  return zt('acao',qAcao,'Precisam de ação',hi.length,'gravidade alta e recontato vencido, do mais atrasado no prazo')+(qAcao?`<div class="queue cases">${hi.map(alertCard).join('')||emp('Nenhum caso de gravidade alta neste filtro.')}</div>`:'')
+  +zt('med',medOn,'Média gravidade',med.length,'acompanhar, sem urgência')+(medOn?`<div class="queue cases">${med.map(alertCard).join('')||emp('Nenhum caso de média gravidade.')}</div>`:'')
+  +zt('and',qAnd,'Em andamento',and.length,'sem alerta, das que têm mais NFs pendentes para as que têm menos')+(qAnd?`<div class="sm" role="list">${and.map(r=>smTile(r,'g')).join('')||emp('Nenhuma rota neste filtro.')}</div>`:'')
+  +zt('done',qDone,'Concluídas',conc.length,'')+(qDone?`<div class="sm" role="list">${conc.map(r=>smTile(r,'c')).join('')}</div>`:'')
+  +(done.length?zt('trat',qTrat,'Tratados nesta sessão',done.length,'')+(qTrat?`<div class="queue cases">${done.map(alertCard).join('')}</div>`:''):'')}
 function mapFilters(){
   const c=(k,v,l)=>`<button class="fchip ${mf[k]===v?'on':''}" data-act="mf" data-k="${k}" data-v="${v}">${l}</button>`;
   return `<div class="filters">${c('tipo','all','Todas as rotas')}${c('tipo','alert','Só com alerta')}${c('tipo','pend','Só com pendências')}<span class="sp"></span>${c('dono','Analista A','Analista A')}${c('dono','Analista B','Analista B')}${vw==='sem'?'':`<button class="fchip" data-act="drawer">${drawerOpen?'Ocultar painel':'Mostrar painel'}</button>`}</div>`}
@@ -536,7 +542,7 @@ function torre(){
   const now0=demoMin(),open=ALERTS.filter(a=>a.estado==='Novo'&&qfOk(a)).sort((a,b)=>(+!!(b.recontato&&b.recontato<=now0))-(+!!(a.recontato&&a.recontato<=now0))||b.sev-a.sev||a.criado-b.criado);
   const done=ALERTS.filter(a=>a.estado!=='Novo');
   const tabs=`<span class="tabs2"><button class="fchip ${vw==='sem'?'on':''}" data-act="vw" data-v="sem">Painel</button><button class="fchip ${vw==='mapa'?'on':''}" data-act="vw" data-v="mapa">Mapa</button></span>`;
-  if(vw==='sem')return `${recBanner()}${kpis()}<section class="panel" id="painel"><h2>Painel de rotas ${tabs} <small>${R.length} rotas · ${open.length} com caso aberto</small></h2>${queueBar()}
+  if(vw==='sem')return `${recBanner()}${kpis()}<section class="panel" id="painel"><h2>Painel de rotas ${tabs} <small>${RS().length} rotas · ${open.length} com caso aberto</small></h2>${queueBar()}
   <div class="mapwrap sem"><div class="mapbox" id="mapbox" style="height:auto;min-height:0;overflow:visible">${painel(open,done)}</div><aside class="drawer" id="drawer">${drawer()}</aside></div></section>`;
   return `${recBanner()}${kpis()}<div class="grid"><section class="panel"><h2>Fila de alertas <small>gravidade e espera</small></h2>
   ${queueBar()}<div class="queue">${queueList(open)}${done.length?`<div class="pad sub" style="border-bottom:1px solid var(--line)">Tratados nesta sessão</div>${done.map(alertCard).join('')}`:''}</div></section>
@@ -570,7 +576,7 @@ function relViagem(id){
   <div class="sub">Conclusão: ${s.Entregue} de ${s.n} paradas entregues${s.Pendente?`, ${s.Pendente} pendentes`:''}${s.Devolvida||s.Reentrega?`, ${s.Reentrega} reentregas e ${s.Devolvida} devoluções`:''}; ${al.length} alerta${al.length===1?'':'s'}, ${ct.length} contato${ct.length===1?'':'s'}. ${E.ok?'Viagem encerrada com checklist completo.':'Viagem ainda não encerrada.'}</div></div>`}
 /* ---- rotas ---- */
 function rotas(){
-  const list=[...R].filter(r=>!uf||r.unid===uf).sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente);
+  const list=[...RS()].filter(r=>!uf||r.unid===uf).sort((a,b)=>stats(b.stops).Pendente-stats(a.stops).Pendente);
   return `${kpis()}<section class="panel"><h2>Rotas do dia <small>ordenadas por NFs pendentes</small></h2><div class="pad" style="padding-bottom:0">${ufBar()}</div><div class="tw"><table><thead><tr><th>Rota</th><th class="hm">Unidade</th><th>Motorista</th><th>Placa</th><th class="n">NFs</th><th>Progresso</th><th class="n">Entreg.</th><th class="n">Pend.</th><th class="n">Reent.</th><th class="n">Dev.</th><th class="n">Valor</th><th>Último dado</th><th>Alerta</th></tr></thead><tbody>
   ${list.map(r=>{const s=stats(r.stops),a=ALERTS.find(x=>x.rota===r.id&&x.estado==='Novo');return `<tr class="click" data-open="${r.id}"><td><b>${lab(r)}</b></td><td class="sub hm">${esc(r.unid)}</td><td>${esc(r.mot)}</td><td class="sub" style="font-family:var(--f-mono)">${esc(r.placa)}</td><td class="n">${s.n}</td><td style="min-width:120px">${barOf(s)}</td><td class="n">${s.Entregue}</td><td class="n">${s.Pendente}</td><td class="n">${s.Reentrega}</td><td class="n">${s.Devolvida}</td><td class="n">${fmt$(s.val)}</td><td>${ativa(r)?freshChip(r):'<span class="sub">—</span>'}</td><td>${a?`<span class="sev s${a.sev}">${a.sev===2?'Alta':'Média'}</span>`:'<span class="sub">—</span>'}</td></tr>`}).join('')}</tbody></table></div></section>`}
 /* ---- transportadoras: controle de NFs no formato da planilha padrão (fictício) ---- */
@@ -690,9 +696,9 @@ function rota(id){
   <section class="panel"><h2>Linha do tempo <small>eventos não editáveis · com autor</small></h2><ul class="tl">${ev.map(e=>`<li><time>${hhmm(e.m)}</time><span>${esc(e.t)} <small class="sub">· ${esc(e.u||'Sistema')}</small></span></li>`).join('')}</ul></section></div>`}
 /* ---- ocorrências ---- */
 function ocorrencias(){
-  let l=rows.filter(r=>r.st==='Reentrega'||r.st==='Devolvida'||r.motivo);
+  let l=rowsS().filter(r=>r.st==='Reentrega'||r.st==='Devolvida'||r.motivo);
   if(filt.st)l=l.filter(r=>r.st===filt.st);if(filt.motivo)l=l.filter(r=>r.motivo===filt.motivo);if(filt.area)l=l.filter(r=>(AREA[r.motivo]||'Comercial')===filt.area);
-  const cnt={};rows.filter(r=>r.motivo).forEach(r=>cnt[r.motivo]=(cnt[r.motivo]||0)+1);
+  const cnt={};rowsS().filter(r=>r.motivo).forEach(r=>cnt[r.motivo]=(cnt[r.motivo]||0)+1);
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1,mx=Math.max(...Object.values(cnt),1);
   return `<h1>Ocorrências</h1><div class="two"><section class="panel"><h2>NFs com falha <small>${l.length} registros</small></h2>
   <div class="filters"><select id="f-st" aria-label="Situação"><option value="">Todas as situações</option>${['Reentrega','Devolvida'].map(x=>`<option ${filt.st===x?'selected':''}>${x}</option>`).join('')}</select>
@@ -822,7 +828,7 @@ function contBanner(){return CONT.on&&view!=='contingencia'&&view!=='motorista'?
 let cliSel=null,cliOnly=true,cliRec=false;
 const ACAO_CLI={'FORA DE HORARIO':'Confirmar a janela de recebimento e atualizar o cadastro','SEM PEDIDO':'Comercial: validar o pedido antes da liberação','DUPLICIDADE DE PEDIDO':'Comercial: conferir duplicidade antes de emitir a NF','SEM AGENDAMENTO':'Exigir agendamento confirmado antes de sair do CD','PEDIDO CANCELADO PELO CLIENTE':'Comercial: baixar o pedido cancelado antes da expedição','DEMORA NO RECEBIMENTO':'Rever janela e tempo de descarga com o cliente','LOJA INVENTARIO':'Evitar entrega em período de inventário'};
 function cliList(){
-  const m={};rows.forEach(r=>{const c=m[r.cli]??={cli:r.cli,cidade:r.cidade,nfs:[],oc:0,val:0,mot:{}};c.nfs.push(r);if(r.st==='Reentrega'||r.st==='Devolvida'){c.oc++;c.val+=r.valor;if(r.motivo)c.mot[r.motivo]=(c.mot[r.motivo]||0)+1}});
+  const m={};rowsS().forEach(r=>{const c=m[r.cli]??={cli:r.cli,cidade:r.cidade,nfs:[],oc:0,val:0,mot:{}};c.nfs.push(r);if(r.st==='Reentrega'||r.st==='Devolvida'){c.oc++;c.val+=r.valor;if(r.motivo)c.mot[r.motivo]=(c.mot[r.motivo]||0)+1}});
   return Object.values(m).map(c=>{const top=Object.entries(c.mot).sort((a,b)=>b[1]-a[1])[0];return {...c,top:top?top[0]:null,rec:c.oc>=2}}).sort((a,b)=>b.oc-a.oc||b.nfs.length-a.nfs.length)}
 function clientes(){
   const all=cliList(),list=(cliRec?all.filter(c=>c.rec):cliOnly?all.filter(c=>c.oc>0):all).slice(0,60),rec=all.filter(c=>c.rec).length,sel=all.find(c=>c.cli===cliSel);
@@ -846,10 +852,10 @@ function qualidade(){
 /* ---- relatório ---- */
 function resumoTxt(){const s=stats(rows);return `Fechamento 08/10/2026 (dados fictícios): ${s.n} NFs, ${fmt$(s.val)}. Entregues ${s.Entregue} (${pct(s.Entregue,s.n)}%), pendentes ${s.Pendente}, reentregas ${s.Reentrega}, devoluções ${s.Devolvida}.`}
 function relatorio(){
-  const s=stats(rows);
+  const s=stats(rowsS());
   const byM={};R.forEach(r=>byM[r.id]=stats(r.stops));
-  const rank=[...R].map(r=>({r,s:byM[r.id]})).sort((a,b)=>b.s.n-a.s.n).slice(0,10);
-  const canal={};rows.forEach(r=>(canal[r.janela]??=[]).push(r));
+  const rank=[...RS()].map(r=>({r,s:byM[r.id]})).sort((a,b)=>b.s.n-a.s.n).slice(0,10);
+  const canal={};rowsS().forEach(r=>(canal[r.janela]??=[]).push(r));
   return `<div class="row"><h1>Relatório do dia</h1><span class="sp"></span><button class="btn pri" data-act="copy">Copiar resumo</button></div>${kpis()}
   <div class="two"><section class="panel"><h2>Motoristas com mais NFs <small>top 10</small></h2><div class="tw"><table><thead><tr><th>Motorista</th><th class="n">NFs</th><th>Situação</th><th class="n">% entregue</th></tr></thead><tbody>${rank.map(({r,s})=>`<tr class="click" data-open="${r.id}"><td>${esc(r.mot)}</td><td class="n">${s.n}</td><td style="min-width:140px">${barOf(s)}</td><td class="n">${pct(s.Entregue,s.n)}%</td></tr>`).join('')}</tbody></table></div></section>
   <section class="panel"><h2>Por canal <small>janela de recebimento</small></h2><div class="tw"><table><thead><tr><th>Canal</th><th class="n">NFs</th><th class="n">% entregue</th><th class="n">Valor</th></tr></thead><tbody>${Object.entries(canal).sort((a,b)=>b[1].length-a[1].length).map(([k,v])=>{const c=stats(v);return `<tr><td>${JAN[k]||k}</td><td class="n">${c.n}</td><td class="n">${pct(c.Entregue,c.n)}%</td><td class="n">${fmt$(c.val)}</td></tr>`}).join('')}</tbody></table></div>
@@ -975,8 +981,8 @@ function sugTurno(){
   L.push('Ações: tratar os altos, cumprir os recontatos no horário e confirmar os reagendamentos com os clientes.');
   return L.join('\n')}
 function turno(){
-  const open=ALERTS.filter(a=>a.estado==='Novo').sort((a,b)=>b.sev-a.sev||a.criado-b.criado),alta=open.filter(a=>a.sev===2).length,rec=open.filter(a=>a.recontato),venc=rec.filter(a=>a.recontato<demoMin()),trat=ALERTS.filter(a=>a.estado!=='Novo').length;
-  const top=[...R].map(r=>({r,s:stats(r.stops)})).sort((a,b)=>b.s.Pendente-a.s.Pendente).slice(0,5);
+  const open=ALERTS.filter(a=>a.estado==='Novo'&&mineA(a)).sort((a,b)=>b.sev-a.sev||a.criado-b.criado),alta=open.filter(a=>a.sev===2).length,rec=open.filter(a=>a.recontato),venc=rec.filter(a=>a.recontato<demoMin()),trat=ALERTS.filter(a=>a.estado!=='Novo'&&mineA(a)).length;
+  const top=[...RS()].map(r=>({r,s:stats(r.stops)})).sort((a,b)=>b.s.Pendente-a.s.Pendente).slice(0,5);
   if(fv['t-txt']===undefined)fv['t-txt']=sugTurno();const de=fv['t-de']||'Analista A',para=de==='Analista A'?'Analista B':'Analista A';
   return `<h1>Passagem de turno</h1><div class="kpis"><a class="kpi k-bad" href="#torre" data-go="turno:torre" title="Ver a lista"><b>${open.length}</b><span>Alertas abertos (${alta} altos)</span></a><a class="kpi k-warn" href="#torre" data-go="turno:torre" title="Ver a lista"><b>${rec.length}</b><span>Recontatos agendados (${venc.length} vencidos)</span></a><a class="kpi k-ok" href="#torre" data-go="turno:torre" title="Ver a lista"><b>${trat}</b><span>Tratados neste turno</span></a><a class="kpi" href="#turno" data-go="turno:comp" title="Ver a lista"><b>${COMP.length}</b><span>Combinados com clientes</span></a></div>
   <div class="two"><section class="panel"><h2>O que passa para o próximo turno <small>${open.length} alertas</small></h2><div class="tw" style="max-height:420px;overflow:auto"><table><thead><tr><th>Gravidade</th><th>Rota</th><th>Motorista</th><th>Caso</th><th>Recontato</th></tr></thead><tbody>
@@ -1091,6 +1097,7 @@ document.addEventListener('click',e=>{
   else if(a==='rnoff'){rnOff()}
   else if(a==='rnreset'){RN={...RN0};RNLOG=[];logAud('Integração','Conexão Roadnet restaurada ao padrão (simulado)',null);render();toast('Conexão padrão restaurada')}
   else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
+  else if(a==='qz'){const k=t.dataset.k;if(k==='acao')qAcao=!qAcao;else if(k==='and')qAnd=!qAnd;else if(k==='done')qDone=!qDone;else if(k==='trat')qTrat=!qTrat;else if(k==='med')qMed=!(qMed||(selAlert&&ALERTS.some(x=>x.id===selAlert&&x.sev!==2&&!(x.recontato&&x.recontato<=demoMin()))));render()}
   else if(a==='qdone'){qDone=!qDone;render()}
   else if(a==='qtrat'){qTrat=!qTrat;render()}
   else if(a==='qmed'){qMed=!qMed;render()}

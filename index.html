@@ -40,6 +40,7 @@ nav a.on{color:var(--fg);background:var(--panel);border-color:var(--line);box-sh
 @media(max-width:700px){.hm{display:none}}
 .chip.bad{border-color:var(--bad);color:var(--bad);font-weight:600}.chip.ok{border-color:var(--ok);color:var(--ok)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+@media(max-width:700px){.kpis.supk{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis.supk .kpi:first-child{grid-column:1/-1}}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
 .kpi{position:relative}
 a.kpi{display:block;color:inherit;text-decoration:none;cursor:pointer}
@@ -776,7 +777,7 @@ function supervisor(){
   const now=demoMin(),esc2=ALERTS.filter(a=>a.estado==='Escalado'),venc=ALERTS.filter(a=>a.estado==='Novo'&&a.recontato&&a.recontato<=now),
    semTrat=ALERTS.filter(a=>a.estado==='Novo'&&a.sev===2&&a.resp==null&&now-a.criado>slaOf(2,a.rota)),pend=LIBR.filter(l=>LIB[l.id].pedido&&!LIB[l.id].exc);
   const by={};ALERTS.forEach(a=>{const d=byId(a.rota).dono||'Sem dono';const o=by[d]??={n:0,ab:0,tr:0,es:0,fp:0,resp:[]};o.n++;if(a.estado==='Novo')o.ab++;else o.tr++;if(a.estado==='Escalado')o.es++;if(a.estado==='Falso positivo')o.fp++;if(a.resp!=null)o.resp.push(a.resp)});
-  return `<h1>Supervisão</h1><div class="kpis">
+  return `<h1>Supervisão</h1><div class="kpis supk">
   <a class="kpi ${semTrat.length?'k-bad':''}" href="#torre" data-go="sup:torre" title="Ver a lista"><b>${semTrat.length}</b><span>Altos fora do prazo, sem tratativa</span></a>
   <a class="kpi ${esc2.length?'k-bad':''}" href="#supervisor" data-go="sup:esc" title="Ver a lista"><b>${esc2.length}</b><span>Escalados para decidir</span></a>
   <a class="kpi ${pend.length?'k-warn':''}" href="#supervisor" data-go="sup:exc" title="Ver a lista"><b>${pend.length}</b><span>Exceções de liberação pendentes</span></a>
@@ -792,7 +793,7 @@ function supervisor(){
   <div class="pad sub">${R.some(r=>r.dono==='Supervisor')?`<b style="color:var(--warn)">${R.filter(r=>r.dono==='Supervisor').length} rotas sem analista disponível: ficam com o supervisor.</b> `:''}Ao marcar férias, os casos abertos do analista passam na hora ao substituto e voltam a ele no retorno. Cada mudança fica na auditoria.</div></section>
   <section class="panel"><h2>Carga por analista <small>alertas por responsável da rota</small></h2><div class="tw"><table><thead><tr><th>Analista</th><th class="n">Alertas</th><th class="n">Abertos</th><th class="n">Tratados</th><th class="n">Escalados</th><th class="n">Falsos positivos</th><th class="n">1ª resposta (média)</th></tr></thead><tbody>
   ${Object.entries(by).sort().map(([d,o])=>`<tr><td><b>${esc(d)}</b></td><td class="n">${o.n}</td><td class="n">${o.ab}</td><td class="n">${o.tr}</td><td class="n">${o.es}</td><td class="n">${o.fp}</td><td class="n">${o.resp.length?Math.round(o.resp.reduce((a,b)=>a+b,0)/o.resp.length)+' min':'—'}</td></tr>`).join('')}</tbody></table></div>
-  <div class="pad sub">O supervisor decide escalonamentos e exceções, e ajusta as regras em <a href="#parametros">Parâmetros</a>. O analista só solicita.</div></section>`}
+  <div class="pad sub"><div class="row"><span>O supervisor decide escalonamentos e exceções e ajusta as regras. O analista só solicita.</span><span class="sp"></span><a class="btn sm" href="#parametros" style="text-decoration:none">Ajustar regras →</a></div></div></section>`}
 /* ---- NFs (destino dos totais) ---- */
 let nfFilt={st:'Pendente',q:''};
 function nfs(){

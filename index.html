@@ -252,6 +252,8 @@ table.wrap td.n{white-space:nowrap}
 table.cmp th{white-space:normal;line-height:1.25;vertical-align:bottom}
 table.cmp th,table.cmp td{padding:7px 8px}
 table.cmp td:nth-child(2){white-space:normal;min-width:150px}
+
+.alert.cp{gap:5px}.alert.cp .who{font-size:13px;color:var(--fg)}.alert.cp .fact{font-size:12.5px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}.alert.cp .meta{font:11.5px var(--f-ui,inherit);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.alert.cp .acts{display:flex;gap:8px;align-items:center}.alert.cp .acts .btn:not(.pri){background:transparent}.alert.cp .top h3{font-size:14px}.alert.cp .sla{flex:none;font:600 12px var(--f-mono)}.cat{flex:none;font:700 10px var(--f-mono);letter-spacing:.08em;padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--mut)}.cat.c-Segurança{background:var(--bad);color:#fff;border-color:var(--bad)}.alert.pred{border-left-color:var(--warn)!important}.alert.cp.s2:not(.pred) .cat{color:var(--bad);border-color:var(--bad)}.queue.cases .alert.crit{grid-column:1/-1;border-width:2px}.queue.cases .alert.crit .acts .btn.pri{height:40px;font-size:14px}.alert.cp:focus-visible,.alert.cp.sel{outline:2px solid var(--fg);outline-offset:1px}.zh small{font-size:12.5px}
 </style>
 
 <div class="app" id="app"></div>
@@ -608,15 +610,18 @@ function semaforo(){
 function smTile(r,k,withSym){const p=r.stops.filter(x=>x.st==='Pendente').length,[sy,lb]=SEMS[k],s2=stats(r.stops);
   return `<button class="sm-t ${k} ${selRoute===r.id?'sel':''}" role="listitem" data-act="semsel" data-id="${r.id}" title="${esc(r.mot)} · ${esc(r.unid)}" aria-label="Rota ${lab(r)}, ${lb}, ${p} NFs pendentes de ${r.stops.length}"><span class="row" style="gap:6px"><b>${lab(r)}</b><span class="mk2" style="color:${SEMS[k][2]}" aria-hidden="true">${withSym||k==='c'?sy:''}</span></span><span class="row2"><span class="n">${p}</span><span class="l2">pend.</span></span><span class="bar" aria-hidden="true"><span style="display:block;height:100%;width:${r.stops.length?Math.round(100*s2.Entregue/r.stops.length):0}%;background:var(--ok)"></span></span></button>`}
 let qDone=false,qTrat=false;
-let qAcao=true,qAnd=true;
+let qAcao=true,qAnd=true,qHoje=true,qTipo='';
 function zt(k,open,label,n,hint){return `<h3 class="zh"><button class="zbtn" data-act="qz" data-k="${k}" aria-expanded="${open}"><span class="zc">${open?'▾':'▸'}</span> ${label} · ${n}</button>${hint?` <small class="hm">${hint}</small>`:''}</h3>`}
 function painel(open,done){
   const withAl=new Set(ALERTS.filter(a=>a.estado==='Novo').map(a=>a.rota)),vis=R.filter(rMatch).filter(r=>isSup()||donoDe(r.unid)===actor());
   const and=vis.filter(r=>ativa(r)&&!withAl.has(r.id)).sort((a,b)=>b.stops.filter(x=>x.st==='Pendente').length-a.stops.filter(x=>x.st==='Pendente').length||a.id-b.id);
   const conc=vis.filter(r=>!ativa(r)&&!withAl.has(r.id));
-  const now=demoMin(),hi=open.filter(a=>a.sev===2||(a.recontato&&a.recontato<=now)),med=open.filter(a=>!hi.includes(a)),medOn=qMed||(selAlert&&med.some(a=>a.id===selAlert));
+  const now=demoMin(),open0=open,fo=qTipo?open.filter(a=>catOf(a)===qTipo):open,hiAll=fo.filter(a=>a.sev===2||(a.recontato&&a.recontato<=now)),med=fo.filter(a=>!hiAll.includes(a)),medOn=qMed||(selAlert&&med.some(a=>a.id===selAlert)),ag=hiAll.filter(alAgora),hj=hiAll.filter(a=>!alAgora(a));
   const emp=t=>`<div class="pad sub">${t}</div>`;
-  return zt('acao',qAcao,'Precisam de ação',hi.length,'gravidade alta e recontato vencido, do mais atrasado no prazo')+(qAcao?`<div class="queue cases">${hi.map(alertCard).join('')||emp('Nenhum caso de gravidade alta neste filtro.')}</div>`:'')
+  const cnt={};open0.forEach(a=>{const c=catOf(a);cnt[c]=(cnt[c]||0)+1});
+  const tipos=`<div class="row tipos" style="flex-wrap:wrap;gap:6px;padding:8px 12px 0"><span class="sub">Tipo:</span><button class="fchip ${qTipo?'':'on'}" data-act="qtipo" data-v="">Todos ${open0.length}</button>${Object.keys(CATL).filter(c=>cnt[c]).map(c=>`<button class="fchip ${qTipo===c?'on':''}" data-act="qtipo" data-v="${c}">${c} ${cnt[c]}</button>`).join('')}</div>`;
+  return tipos+zt('acao',qAcao,'Agora',ag.length,'prazo estourado, recontato vencido ou emergência: trate nesta ordem')+(qAcao?`<div class="queue cases">${ag.map(alertCard).join('')||emp('Nada vencido neste filtro.')}</div>`:'')
+  +zt('hoje',qHoje,'Hoje',hj.length,'gravidade alta ainda no prazo, ou risco previsto: resolver antes do fim do dia')+(qHoje?`<div class="queue cases">${hj.map(alertCard).join('')||emp('Nenhum caso neste filtro.')}</div>`:'')
   +zt('med',medOn,'Média gravidade',med.length,'acompanhar, sem urgência')+(medOn?`<div class="queue cases">${med.map(alertCard).join('')||emp('Nenhum caso de média gravidade.')}</div>`:'')
   +zt('and',qAnd,'Em andamento',and.length,'sem alerta, das que têm mais NFs pendentes para as que têm menos')+(qAnd?`<div class="sm" role="list">${and.map(r=>smTile(r,'g')).join('')||emp('Nenhuma rota neste filtro.')}</div>`:'')
   +zt('done',qDone,'Concluídas',conc.length,'')+(qDone?`<div class="sm" role="list">${conc.map(r=>smTile(r,'c')).join('')}</div>`:'')
@@ -632,9 +637,17 @@ function queueBar(){const all=ALERTS.filter(a=>a.estado==='Novo'),m=all.filter(a
   const b=(v,l)=>`<button class="btn sm ${((qf==='todos'&&!isSup())?'meus':qf)===v?'pri':''}" data-act="qf" data-v="${v}">${l}</button>`;
   return `<div class="pad noprint" style="padding-bottom:0;display:grid;gap:6px"><div class="row" style="flex-wrap:wrap">${isSup()?b('todos','Todos '+all.length):''}${b('meus','Meus '+m)}${isSup()||sd?b('sem','Sem dono '+sd):''}<span class="sp"></span><span class="sub hm" title="Atalhos: J e K percorrem a fila, T trata, Esc fecha">J/K · T · Esc</span><button class="btn sm" data-act="mute" title="O som toca só para alerta alto novo, recontato vencido e queda do feed">${MUTE||!CFG.somAtivo?'Som desligado':'Som ligado'}</button></div>${ufBar(true)}</div>`}
 function alertCard(a){if(a.estado==='Novo')return alertCompact(a);return alertFull(a)}
-function alertCompact(a){const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0,rd=a.recontato&&a.recontato<=demoMin();
-  return `<div class="alert cp s${a.sev} ${a.crit?'crit':''} ${rd?'recdue':''} ${selAlert===a.id?'sel':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="sev s${a.sev}" title="Gravidade ${a.sev===2?'alta':'média'}">${a.sev===2?'▲':'◆'}</span><h3 title="${esc(a.itens[0])}">${lab(r)} · ${esc(r.mot.split(' ').slice(0,2).join(' '))}</h3><span class="sla ${late?'late':''}">${late?`+${Math.abs(Math.round(left))} min`:`${Math.round(left)} min`}</span></div>
-  <div class="trunc"><b style="color:var(--fg)">${a.kind}${a.itens.length>1?` · ${a.itens.length}`:''}</b> · ${esc(a.itens[0])}</div><div class="row2"><span class="sub">${isSup()?(a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>')+' · '+esc(r.unid):(a.dono?esc(r.unid):'<b style="color:var(--warn)">sem dono</b> · '+esc(r.unid))}</span><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
+const CAT={'Devolução registrada':'Entrega','Entrega fora do horário':'Entrega','Reentrega solicitada':'Entrega','Perda de sinal':'Sinal','Parada não prevista':'Trajeto','Desvio de rota':'Trajeto','Permanência acima do previsto':'Trajeto','Risco de não concluir o dia':'Prazo','Atraso previsto':'Prazo','Rota atrasada':'Prazo','Atraso de saída':'Saída'};
+const catOf=a=>a.crit?'Segurança':(CAT[a.kind]||'Outros');
+const isPred=a=>a.kind==='Risco de não concluir o dia'||a.kind==='Atraso previsto';
+const CATL={'Segurança':'SEG','Sinal':'SINAL','Saída':'SAÍDA','Entrega':'ENTREGA','Trajeto':'TRAJETO','Prazo':'PRAZO','Outros':'OUTROS'};
+const factOf=a=>{let t=a.itens[0];if(t.startsWith(a.kind+': '))t=t.slice(a.kind.length+2);return t};
+const alAgora=a=>{const left=slaOf(a.sev,a.rota)-(demoMin()-a.criado);return a.crit||(a.recontato&&a.recontato<=demoMin())||(!isPred(a)&&left<0)};
+function alertCompact(a){const r=byId(a.rota),age=Math.max(0,Math.round(demoMin()-a.criado)),left=slaOf(a.sev,a.rota)-age,late=left<0,rd=a.recontato&&a.recontato<=demoMin(),cat=catOf(a),uc=ultCont(r);
+  const sla=late?`<span class="sla late" title="Prazo de resposta estourado há ${Math.abs(Math.round(left))} min">SLA +${Math.abs(Math.round(left))} min</span>`:`<span class="sla" title="Prazo de resposta restante">no prazo · ${Math.round(left)} min</span>`;
+  const meta=[a.dono?esc(a.dono):'<b style="color:var(--warn)">sem dono</b>',esc(r.unid),'aberto há '+age+' min',uc==null?'sem contato':'contato há '+uc+' min'].join(' · ');
+  return `<div class="alert cp s${a.sev} ${a.crit?'crit':''} ${isPred(a)?'pred':''} ${rd?'recdue':''} ${selAlert===a.id?'sel':''}" data-alert="${a.id}">${rd?`<div class="recstrip">Recontato vencido · ligar agora</div>`:''}<div class="top"><span class="cat c-${cat}" title="Categoria: ${cat}">${CATL[cat]}</span><h3 title="${esc(a.kind)}">${a.kind}${a.itens.length>1?` <small class="sub">· ${a.itens.length} casos</small>`:''}</h3>${sla}</div>
+  <div class="who"><b>${lab(r)}</b> · ${esc(r.mot.split(' ').slice(0,2).join(' '))}</div><div class="fact" title="${esc(a.itens[0])}">${esc(factOf(a))}</div><div class="meta">${meta}</div><div class="acts"><button class="btn pri sm" data-act="treat" data-id="${a.id}">Tratar</button><button class="btn sm" data-act="ligar" data-id="${a.rota}">Ligar</button>${a.dono?'':`<button class="btn sm" data-act="assume" data-id="${a.id}">Assumir</button>`}</div></div>`}
 function alertFull(a){
   const r=byId(a.rota),left=slaOf(a.sev,a.rota)-(demoMin()-a.criado),late=left<0&&a.estado==='Novo';
   const sevL=a.crit?'Crítica':a.sev===2?'Alta':'Média';
@@ -1281,7 +1294,7 @@ document.addEventListener('click',e=>{
   else if(a==='motexit'){e.preventDefault();role='Analista A';qf='meus';uf='';logAud('Acesso','Perfil alterado de motorista para Analista A (simulado)');try{localStorage.setItem('torre_role',role)}catch(x){}location.hash='#torre';render()}
   else if(a==='moretog'){e.preventDefault();MORE_OPEN=!MORE_OPEN;render()}
   else if(a==='demotog'){DEMO_OPEN=!DEMO_OPEN;render()}
-  else if(a==='qz'){const k=t.dataset.k;if(k==='acao')qAcao=!qAcao;else if(k==='and')qAnd=!qAnd;else if(k==='done')qDone=!qDone;else if(k==='trat')qTrat=!qTrat;else if(k==='med')qMed=!(qMed||(selAlert&&ALERTS.some(x=>x.id===selAlert&&x.sev!==2&&!(x.recontato&&x.recontato<=demoMin()))));render()}
+  else if(a==='qz'){const k=t.dataset.k;if(k==='acao')qAcao=!qAcao;else if(k==='hoje')qHoje=!qHoje;else if(k==='and')qAnd=!qAnd;else if(k==='done')qDone=!qDone;else if(k==='trat')qTrat=!qTrat;else if(k==='med')qMed=!(qMed||(selAlert&&ALERTS.some(x=>x.id===selAlert&&x.sev!==2&&!(x.recontato&&x.recontato<=demoMin()))));render()}
   else if(a==='qdone'){qDone=!qDone;render()}
   else if(a==='qtrat'){qTrat=!qTrat;render()}
   else if(a==='qmed'){qMed=!qMed;render()}
@@ -1312,6 +1325,7 @@ document.addEventListener('click',e=>{
   else if(a==='per'){PER.k=t.dataset.v;render()}
   else if(a==='copyper'){const tx=perTxt();(navigator.clipboard?.writeText(tx)||Promise.reject()).then(()=>toast('Resumo do período copiado')).catch(()=>toast('Copie manualmente: o resumo está no fim da página'))}
   else if(a==='rsort'){RSORT=t.dataset.v;render()}
+  else if(a==='qtipo'){qTipo=t.dataset.v||'';render()}
   else if(a==='ligar'){e.stopPropagation();toast('Ligando para '+byId(id).mot+' (demo)')}
   else if(a==='drvsai'){if(viagemSt(byId(id)).k==='nao'){logEv(id,'Saída do CD');logAud('Evento da rota','Motorista iniciou a rota (Saí do CD)',id);buildAlerts()}toast('Rota iniciada');render()}
   else if(a==='drvnav'){const x=byId(drv.rota).stops.find(z=>z.st==='Pendente');toast(x?'Abriria o mapa para '+x.cli+' (demo)':'Sem próxima parada')}

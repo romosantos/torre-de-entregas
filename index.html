@@ -332,7 +332,7 @@ const saidaPrev=()=>CFG.saidaH*60+CFG.saidaM;
 function viagemSt(r){let E=null;try{E=ENC[r.id]}catch(e){}
   if(E&&E.ok)return {k:'enc',m:E.ok.m};
   const sa=(EV[r.id]||[]).find(e=>/Saída do CD/.test(e.t));
-  if(!sa)return {k:'nao',prev:saidaPrev(),late:demoMin()-saidaPrev()};
+  if(!sa){const pv=BASE-(20+(r.id*11)%45);return {k:'nao',prev:pv,late:demoMin()-pv}}
   if(!r.stops.some(x=>x.st==='Pendente'))return {k:'volta',m:sa.m,cd:E&&E.drv?E.drv.m:null};
   return {k:'rota',m:sa.m}}
 function viagemChip(r){const v=viagemSt(r);

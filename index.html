@@ -1047,7 +1047,7 @@ function fechamento(){
   const pct=st.n?Math.round(st.Entregue/st.n*100):0,k=(v,l,c)=>`<div class="kpi ${c||''}" style="cursor:default"><b>${v}</b><span>${l}</span></div>`;
   const porK={};aber.forEach(a=>{porK[a.kind]=(porK[a.kind]||0)+1});
   return `<section class="panel"><h2>Fechamento do dia <small>${hhmm(demoMin())} · fim da operação ${hhmm(CFG.fimH*60)}</small></h2><div class="pad" style="display:grid;gap:14px">
-  <div class="sub">Demonstração: as entregas não avançam sozinhas, então este fechamento mostra a situação no horário de fim da operação, com os dados da demo. Em produção, os números vêm da Roadnet e do rastreador.</div>
+  <div class="sub">Demonstração: ao fechar o dia, as entregas pendentes foram concluídas de forma simulada, exceto as de rotas que não saíram do CD, com emergência aberta ou com chegada prevista depois do fim da operação (cerca de 1 em cada 13 vira reentrega). Em produção, os números vêm da Roadnet e do rastreador.</div>
   <div class="kpis">${k(pct+'%','Entregues ('+st.Entregue+' de '+st.n+')','ok')}${k(st.Pendente,'NFs pendentes · R$ '+Math.round(st.valPend).toLocaleString('pt-BR'),st.Pendente?'bad':'')}${k(st.Reentrega,'Reentregas')}${k(st.Devolvida,'Devoluções')}</div>
   <div class="kpis">${k(conc+' de '+rs.length,'Rotas concluídas')}${k(ativas.length,'Rotas ainda abertas',ativas.length?'bad':'')}${k(risco.length,'Sem chance de concluir hoje')}${k(emg.length,'Emergências no dia')}</div>
   <div><b>Alertas:</b> ${trat.length} tratados · ${aber.length} ainda abertos${aber.length?' ('+Object.entries(porK).map(([k2,v])=>k2+' '+v).join(', ')+')':''}. Os abertos passam para o turno seguinte pela passagem de turno.</div>
@@ -1361,7 +1361,7 @@ document.addEventListener('click',e=>{
   else if(a==='tmais'){NF_N=NF_N>=60?20:60;render()}
   else if(a==='tfila'){FILA_ALL=!FILA_ALL;render()}
   else if(a==='demoreset'){location.hash='#torre';location.reload()}
-  else if(a==='fechardia'){const alvo=CFG.fimH*60;if(demoMin()<alvo)T0-=(alvo-demoMin())*60000;buildAlerts();location.hash='#fechamento';render()}
+  else if(a==='fechardia'){const alvo=CFG.fimH*60;if(demoMin()<alvo)T0-=(alvo-demoMin())*60000;if(!window.FECH){window.FECH=1;R.forEach(r=>{if(viagemSt(r).k==='nao'||(EMG[r.id]&&!EMG[r.id].fim))return;const rd=riscoDia(r),fora=new Set(rd?rd.fora.map(f=>f.x):[]);r.stops.forEach((x,i)=>{if(x.st!=='Pendente'||fora.has(x))return;if((r.id*7+i)%13===0){x.st='Reentrega';x.motivo='SEM AGENDAMENTO'}else x.st='Entregue'})})}buildAlerts();location.hash='#fechamento';render()}
   else if(a==='adv'){T0-=10*60000;buildAlerts();checkDue();render()}
   else if(a==='tsug'){fv['t-txt']=sugTurno();render();toast('Sugestão atualizada')}
   else if(a==='hand'){const txt=(document.getElementById('t-txt').value||'').trim(),de=fv['t-de']||'Analista A';if(!txt){toast('Escreva o recado para o próximo turno');return}
